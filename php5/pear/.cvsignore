@@ -1,0 +1,9 @@
+install-pear-nozlib.phar
+Makefile
+.deps
+phpize
+run-tests
+php-config
+test.php
+*.gcda
+*.gcno

@@ -1,0 +1,9 @@
+phpt.*
+*.mem
+*.diff
+*.php
+*.log
+*.exp
+*.out
+*.gcda
+*.gcno

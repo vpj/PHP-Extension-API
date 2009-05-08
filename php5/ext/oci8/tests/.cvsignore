@@ -1,0 +1,10 @@
+*.out
+*.mem
+*.php
+*.tmp
+*.diff
+*.exp
+*.log
+*.gcda
+*.gcno
+*.vglog

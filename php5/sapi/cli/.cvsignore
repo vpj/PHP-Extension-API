@@ -1,0 +1,13 @@
+*.la
+*.lo
+.deps
+.libs
+Release_TS_inline
+Release_TS
+Debug_TS
+*.plg
+php
+php.cli
+php.1
+*.gcda
+*.gcno

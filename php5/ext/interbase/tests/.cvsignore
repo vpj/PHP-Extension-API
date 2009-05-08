@@ -1,0 +1,12 @@
+phpt.*
+*.mem
+*.diff
+*.log
+*.exp
+*.out
+*.php
+ibase_test.tmp
+blob.*
+CREATED*
+*.gcda
+*.gcno
