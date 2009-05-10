@@ -29,6 +29,7 @@
 #include "zend_builtin_functions.h"
 #include "zend_ini.h"
 #include "zend_vm.h"
+#include "zend_ext_api.h"
 
 #ifdef ZTS
 # define GLOBAL_FUNCTION_TABLE		global_function_table
@@ -659,6 +660,8 @@ int zend_startup(zend_utility_functions *utility_functions, char **extensions TS
 	zend_hash_init_ex(GLOBAL_CONSTANTS_TABLE, 20, NULL, ZEND_CONSTANT_DTOR, 1, 0);
 
 	zend_hash_init_ex(&module_registry, 50, NULL, ZEND_MODULE_DTOR, 1, 0);
+	zend_ext_api_init();
+
 	zend_init_rsrc_list_dtors();
 
 	/* This zval can be used to initialize allocate zval's to an uninit'ed value */
