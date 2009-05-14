@@ -15,7 +15,7 @@ typedef struct _zend_ext_api_extension zend_ext_api_extension;
 
 void zend_ext_api_free_api(void *api)
 {
-	zend_ext_api_extension *ext_api = (zend_ext_api_extension *)api;
+	//zend_ext_api_extension *ext_api = (zend_ext_api_extension *)api;
 	/* TODO: Free memory */
 }
 
@@ -24,14 +24,15 @@ void zend_ext_api_init()
     zend_hash_init_ex(&ext_api_registry, 10, NULL, zend_ext_api_free_api, 1, 0);
 }
 
+/* TODO: Parse the HashTable as a parameter */
 zend_ext_api_extension * zend_ext_api_create(char *ext_name, int version, void *api, size_t size)
 {
-	zend_ext_api_extension *ext_api = (zend_ext_api_extension *) pemalloc_rel(sizeof(zend_ext_api_extension), ext_api_registery->persistent);
+	zend_ext_api_extension *ext_api = (zend_ext_api_extension *) malloc(sizeof(zend_ext_api_extension)); //pemalloc_rel(sizeof(zend_ext_api_extension), 1 /*ext_api_registry.persistent */);
  
     ext_api->version = version;
 	ext_api->size = size;
 	ext_api->ext_name = strdup(ext_name);
-	ext_api->api = (void *)pemalloc_rel(size, ext_api_registry->persistent);
+	ext_api->api = (void *)malloc(size); //pemalloc_rel(size, ext_api_registry.persistent);
     memcpy(ext_api->api, api, size);
 
 	return ext_api;
@@ -53,7 +54,7 @@ ZEND_API int zend_ext_api_register(char *ext_name, int version, void *api, size_
 	zend_ext_api_extension *ext_api = zend_ext_api_create(ext_name, version, api, size);
 	/* Check errors when creating extension */
 
-	int r = zend_hash_add(&ext_api_registry, hash_name, strlen(hash_name) + 1, api, size, NULL);
+	int r = zend_hash_add(&ext_api_registry, hash_name, strlen(hash_name) + 1, ext_api, size, NULL);
 	/* TODO: Clear ext_api memory */
 
 	return r;
