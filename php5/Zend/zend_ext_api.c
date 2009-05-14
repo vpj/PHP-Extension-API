@@ -54,7 +54,7 @@ ZEND_API int zend_ext_api_register(char *ext_name, int version, void *api, size_
 	zend_ext_api_extension *ext_api = zend_ext_api_create(ext_name, version, api, size);
 	/* Check errors when creating extension */
 
-	int r = zend_hash_add(&ext_api_registry, hash_name, strlen(hash_name) + 1, ext_api, size, NULL);
+	int r = zend_hash_add(&ext_api_registry, hash_name, strlen(hash_name) + 1, ext_api, sizeof(zend_ext_api_extension), NULL);
 	/* TODO: Clear ext_api memory */
 
 	return r;
@@ -71,8 +71,10 @@ ZEND_API int zend_ext_api_get(char *ext_name, int version, void **api)
 {
 	char *hash_name = zend_ext_api_hash_name(ext_name, version);
 	/* TODO: Clear hash_name memory */
-	zend_ext_api_extension *ext_api = (zend_ext_api_extension *)zend_hash_find(&ext_api_registry, hash_name, strlen(hash_name) + 1, api);
+	zend_ext_api_extension *ext_api;
+	int r = zend_hash_find(&ext_api_registry, hash_name, strlen(hash_name) + 1, (void **)(&ext_api));
+	*api = ext_api->api;
 
-	return ext_api->api;
+	return r;
 }
 
