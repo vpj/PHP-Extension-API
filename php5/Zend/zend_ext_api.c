@@ -71,6 +71,8 @@ ZEND_API int zend_ext_api_get(char *ext_name, int version, void **api)
 {
 	char *hash_name = zend_ext_api_hash_name(ext_name, version);
 	/* TODO: Clear hash_name memory */
-	return zend_hash_find(&ext_api_registry, hash_name, strlen(hash_name) + 1, api);
+	zend_ext_api_extension *ext_api = (zend_ext_api_extension *)zend_hash_find(&ext_api_registry, hash_name, strlen(hash_name) + 1, api);
+
+	return ext_api->api;
 }
 
