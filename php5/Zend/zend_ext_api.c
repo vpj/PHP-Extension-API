@@ -40,7 +40,7 @@ zend_ext_api_extension * zend_ext_api_create(char *ext_name, int version, void *
 
 char * zend_ext_api_hash_name(char *ext_name, int version)
 {
-	char *hash_name;
+	char *hash_name = malloc(100); /* TODO: Change this to strlen (ext_name) and free the memory after use */
 
 	sprintf(hash_name, "%s-%d", ext_name, version);
 
