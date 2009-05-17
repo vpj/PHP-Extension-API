@@ -760,6 +760,7 @@ void zend_shutdown(TSRMLS_D) /* {{{ */
 #endif
 	zend_destroy_rsrc_list(&EG(persistent_list) TSRMLS_CC);
 	zend_hash_graceful_reverse_destroy(&module_registry);
+    zend_ext_api_destroy();
 
 	zend_hash_destroy(GLOBAL_FUNCTION_TABLE);
 	zend_hash_destroy(GLOBAL_CLASS_TABLE);
