@@ -16,29 +16,50 @@ typedef struct _zend_ext_api_extension zend_ext_api_extension;
 
 void zend_ext_api_free_api(void *api)
 {
-	//zend_ext_api_extension *ext_api = (zend_ext_api_extension *)api;
-	/* TODO: Free memory */
+	zend_ext_api_extension *ext_api = (zend_ext_api_extension *)api;
+	
+	/* Free memory */
+	pefree(api->ext_name, ext_api_registry->persistent);
+	pefree(api->version_text, ext_api_registry->persistent);
+	pefree(api->api, ext_api_registry->persistent);
+	pefree(api, ext_api_registry->persistent);
 }
 
 void zend_ext_api_destroy()
 {
+	/* TODO: Destroy the hash table */
 }
 
 void zend_ext_api_init()
 {
-    zend_hash_init_ex(&ext_api_registry, 10, NULL, zend_ext_api_free_api, 1, 0);
+    if(zend_hash_init_ex(&ext_api_registry, 10, NULL, zend_ext_api_free_api, /* persistent */1, 0) == FAILURE)
+	{
+#if ZEND_DEBUG
+		ZEND_PUTS("Unable to initialize the HashTable\n");
+#endif
+	}
 }
 
-/* TODO: Parse the HashTable as a parameter */
 zend_ext_api_extension * zend_ext_api_create(HashTable *ht, char *ext_name, uint version, char *version_text, void *api, size_t size)
 {
-	zend_ext_api_extension *ext_api = (zend_ext_api_extension *) /*malloc(sizeof(zend_ext_api_extension));*/pemalloc(sizeof(zend_ext_api_extension), ht->persistent);
+	zend_ext_api_extension *ext_api = (zend_ext_api_extension *)pemalloc(sizeof(zend_ext_api_extension), ht->persistent);
+
+	if(!ext_api)
+	{
+		return NULL;
+	}
  
     ext_api->version = version;
 	ext_api->version_text = strdup(version_text);
 	ext_api->size = size;
 	ext_api->ext_name = strdup(ext_name);
-	ext_api->api = (void *)/*malloc(size);*/pemalloc(size, ht->persistent);
+	ext_api->api = (void *)pemalloc(size, ht->persistent);
+	
+	if(!(ext_api->api))
+	{
+		return NULL;
+	}
+
     memcpy(ext_api->api, api, size);
 
 	return ext_api;
@@ -89,6 +110,11 @@ int zend_ext_api_ver_str(HashTable *ht, uint version, char ** version_text)
 {
 	*version_text = pemalloc(14, ht->persistent);
 
+	if(!version_text)
+	{
+		return FAILURE;
+	}
+
 	sprintf(*version_text, "%u", version);
 
 	return SUCCESS;
@@ -96,7 +122,12 @@ int zend_ext_api_ver_str(HashTable *ht, uint version, char ** version_text)
 
 int zend_ext_api_hash_name(HashTable *ht, char *ext_name, uint version, char ** hash_name)
 {
-	*hash_name = pemalloc(strlen(ext_name) + 10, ht->persistent); /*malloc(100);*/ /* TODO: Change this to strlen (ext_name) and free the memory after use */
+	*hash_name = pemalloc(strlen(ext_name) + 10, ht->persistent); 
+
+	if(!hash_name)
+	{
+		return FAILURE;
+	}
 
 	sprintf(*hash_name, "%s-%x", ext_name, version);
 
@@ -108,7 +139,9 @@ ZEND_API int zend_ext_api_register(char *ext_name, char * version, void *api, si
 	uint vi;
 	char *hash_name;
 	int r;
+	zend_ext_api_extension *ext_api;
 
+	/* Parse the version number */
 	if(zend_ext_api_version(version, &vi) == FAILURE)
 	{
 #if ZEND_DEBUG
@@ -117,13 +150,31 @@ ZEND_API int zend_ext_api_register(char *ext_name, char * version, void *api, si
 		return FAILURE;
 	}
 
-	zend_ext_api_hash_name(&ext_api_registry, ext_name, vi, &hash_name);
-	/* TODO: Clear hash_name memory */
-	zend_ext_api_extension *ext_api = zend_ext_api_create(&ext_api_registry, ext_name, vi, version, api, size);
-	/* Check errors when creating extension */
+	/* Extensions are added to the hash table by hash_name, which is ext_name + '-' + version */
+	if(zend_ext_api_hash_name(&ext_api_registry, ext_name, vi, &hash_name) == FAILURE)
+	{
+#if ZEND_DEBUG
+		ZEND_PUTS("Memory allocation error\n");
+#endif
+		return FAILURE;
+	}
+
+	/* Wrap the api structure */
+	ext_api = zend_ext_api_create(&ext_api_registry, ext_name, vi, version, api, size);
+	if(!ext_api)
+	{
+#if ZEND_DEBUG
+		ZEND_PUTS("Memory allocation error\n");
+#endif
+		return FAILURE;
+	}
 
 	r = zend_hash_add(&ext_api_registry, hash_name, strlen(hash_name) + 1, ext_api, sizeof(zend_ext_api_extension), NULL);
-	/* TODO: Clear ext_api memory */
+	
+	/* Clear ext_api memory */
+	pefree(ext_api, ext_api_registry.persistent);
+	/* Clear hash_name memory */
+	pefree(hash_name, ext_api_registry.persistent);
 
 	return r;
 }
@@ -173,14 +224,19 @@ ZEND_API int zend_ext_api_exists(char *ext_name, char *version)
 int zend_ext_api_get_int_ver(char *ext_name, uint version, void **api)
 {
 	char *hash_name;
+	zend_ext_api_extension *ext_api;
 	
 	zend_ext_api_hash_name(&ext_api_registry, ext_name, version, &hash_name);
-	/* TODO: Clear hash_name memory */
-	zend_ext_api_extension *ext_api;
-	int r = zend_hash_find(&ext_api_registry, hash_name, strlen(hash_name) + 1, (void **)(&ext_api));
+	
+	if(zend_hash_find(&ext_api_registry, hash_name, strlen(hash_name) + 1, (void **)(&ext_api)) == FAILURE)
+	{
+		return FAILURE;
+	}
+
 	*api = ext_api->api;
 
-	return r;
+	/* TODO: Clear hash_name memory */
+	return SUCCESS;
 }
 
 ZEND_API int zend_ext_api_get(char *ext_name, char *version, void **api)
