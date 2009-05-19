@@ -1,9 +1,10 @@
 #include "zend.h"
 #include "zend_ext_api.h"
 
+/* Stores all the APIs */
 HashTable ext_api_registry;
-/* TODO: Check if memory allocations fail */
 
+/* Wrapper structure for APIs */
 struct _zend_ext_api_extension {
 	char *ext_name;
 	uint version;
@@ -19,15 +20,19 @@ void zend_ext_api_free_api(void *api)
 	zend_ext_api_extension *ext_api = (zend_ext_api_extension *)api;
 	
 	/* Free memory */
-	pefree(api->ext_name, ext_api_registry->persistent);
-	pefree(api->version_text, ext_api_registry->persistent);
-	pefree(api->api, ext_api_registry->persistent);
-	pefree(api, ext_api_registry->persistent);
+	pefree(ext_api->ext_name, ext_api_registry.persistent);
+	pefree(ext_api->version_text, ext_api_registry.persistent);
+	pefree(ext_api->api, ext_api_registry.persistent);
+	
+	/* The hash entry will be freed by the hash table */
+	/* pefree(ext_api, ext_api_registry.persistent); */
 }
 
 void zend_ext_api_destroy()
 {
-	/* TODO: Destroy the hash table */
+	/* Destroy the hash table */
+    /* zend_hash_graceful_reverse_destroy(&module_registry); We don't need this at the moment*/
+	zend_hash_destroy(&ext_api_registry);
 }
 
 void zend_ext_api_init()
@@ -154,7 +159,7 @@ ZEND_API int zend_ext_api_register(char *ext_name, char * version, void *api, si
 	if(zend_ext_api_hash_name(&ext_api_registry, ext_name, vi, &hash_name) == FAILURE)
 	{
 #if ZEND_DEBUG
-		ZEND_PUTS("Memory allocation error\n");
+		ZEND_PUTS("Error creating the hash name\n");
 #endif
 		return FAILURE;
 	}
@@ -184,15 +189,40 @@ int zend_ext_api_register_int_ver(char *ext_name, uint version, void *api, size_
 	char *version_text;
 	char *hash_name;
 	int r;
+	zend_ext_api_extension *ext_api;
 
-	zend_ext_api_ver_str(&ext_api_registry, version, &version_text);
-	zend_ext_api_hash_name(&ext_api_registry, ext_name, version, &hash_name);
-	/* TODO: Clear hash_name memory */
-	zend_ext_api_extension *ext_api = zend_ext_api_create(&ext_api_registry, ext_name, version, version_text, api, size);
-	/* Check errors when creating extension */
+	if(zend_ext_api_ver_str(&ext_api_registry, version, &version_text) == FAILURE)
+	{
+#if ZEND_DEBUG
+		ZEND_PUTS("Cannot convert version number to a string\n");
+#endif
+		return FAILURE;
+	}
+
+	if(zend_ext_api_hash_name(&ext_api_registry, ext_name, version, &hash_name) == FAILURE)
+	{
+#if ZEND_DEBUG
+		ZEND_PUTS("Error creating the hash name\n");
+#endif
+		return FAILURE;
+	}
+	
+	/* Wrap the api structure */
+	ext_api = zend_ext_api_create(&ext_api_registry, ext_name, version, version_text, api, size);
+	if(!ext_api)
+	{
+#if ZEND_DEBUG
+		ZEND_PUTS("Memory allocation error\n");
+#endif
+		return FAILURE;
+	}
 
 	r = zend_hash_add(&ext_api_registry, hash_name, strlen(hash_name) + 1, ext_api, sizeof(zend_ext_api_extension), NULL);
-	/* TODO: Clear ext_api memory */
+	
+	/* Clear ext_api memory */
+	pefree(ext_api, ext_api_registry.persistent);
+	/* Clear hash_name memory */
+	pefree(hash_name, ext_api_registry.persistent);
 
 	return r;
 }
@@ -200,10 +230,22 @@ int zend_ext_api_register_int_ver(char *ext_name, uint version, void *api, size_
 int zend_ext_api_exists_int_ver(char *ext_name, uint version)
 {
 	char *hash_name;
+	int r;
+
+	if(zend_ext_api_hash_name(&ext_api_registry, ext_name, version, &hash_name) == FAILURE)
+	{
+#if ZEND_DEBUG
+		ZEND_PUTS("Error creating the hash name\n");
+#endif
+		return FAILURE;
+	}
 	
-	zend_ext_api_hash_name(&ext_api_registry, ext_name, version, &hash_name);
-	/* TODO: Clear hash_name memory */
-	return zend_hash_exists(&ext_api_registry, hash_name, strlen(hash_name) + 1);
+	r = zend_hash_exists(&ext_api_registry, hash_name, strlen(hash_name) + 1);
+	
+	/* Clear hash_name memory */
+	pefree(hash_name, ext_api_registry.persistent);
+
+	return r;
 }
 
 ZEND_API int zend_ext_api_exists(char *ext_name, char *version)
@@ -226,16 +268,25 @@ int zend_ext_api_get_int_ver(char *ext_name, uint version, void **api)
 	char *hash_name;
 	zend_ext_api_extension *ext_api;
 	
-	zend_ext_api_hash_name(&ext_api_registry, ext_name, version, &hash_name);
+	if(zend_ext_api_hash_name(&ext_api_registry, ext_name, version, &hash_name) == FAILURE)
+	{
+#if ZEND_DEBUG
+		ZEND_PUTS("Error creating the hash name\n");
+#endif
+		return FAILURE;
+	}
 	
 	if(zend_hash_find(&ext_api_registry, hash_name, strlen(hash_name) + 1, (void **)(&ext_api)) == FAILURE)
 	{
 		return FAILURE;
 	}
 
+	/* WARNING: Should the api be passed back or a copy? */
 	*api = ext_api->api;
 
-	/* TODO: Clear hash_name memory */
+	/* Clear hash_name memory */
+	pefree(hash_name, ext_api_registry.persistent);
+
 	return SUCCESS;
 }
 
