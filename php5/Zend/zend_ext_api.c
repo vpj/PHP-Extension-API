@@ -89,6 +89,7 @@ void zend_ext_api_destroy()
 	zend_llist_destroy(&ext_api_callback_list);
 }
 
+/* Initialize hashtables and lists */
 void zend_ext_api_init()
 {
 	if(zend_hash_init_ex(&ext_api_registry, 10, NULL, zend_ext_api_free_api, /* persistent */1, 0) == FAILURE)
@@ -108,6 +109,7 @@ void zend_ext_api_init()
 	zend_llist_init(&ext_api_callback_list, sizeof(zend_ext_api_cb), zend_ext_api_free_callback, 1);
 }
 
+/* Wrap the API */
 zend_ext_api_extension * zend_ext_api_create(char *ext_name, uint version, char *version_text, void *api, size_t size)
 {
 	zend_ext_api_extension *ext_api = (zend_ext_api_extension *)pemalloc(sizeof(zend_ext_api_extension), _REG_PRST);
@@ -133,6 +135,7 @@ zend_ext_api_extension * zend_ext_api_create(char *ext_name, uint version, char 
 	return ext_api;
 }
 
+/* Convert version from text to numerical form */
 ZEND_API int zend_ext_api_version_toi(char *version_text, uint *version_int)
 {
 	uint t;
@@ -174,6 +177,7 @@ ZEND_API int zend_ext_api_version_toi(char *version_text, uint *version_int)
 	}
 }
 
+/* Covert version from numerical to text format */
 ZEND_API int zend_ext_api_version_toa(uint version, char ** version_text)
 {
 	int a[4] = {0, 0, 0, 0};
@@ -200,6 +204,8 @@ ZEND_API int zend_ext_api_version_toa(uint version, char ** version_text)
 	return SUCCESS;
 }
 
+/* API's are stored in the hashtable with the extension name
+ * postfixed by the version. This function finds the key */ 
 int zend_ext_api_get_hashname(char *ext_name, uint version, char ** hash_name)
 {
 	*hash_name = pemalloc(strlen(ext_name) + 10, _REG_PRST); 
@@ -214,6 +220,9 @@ int zend_ext_api_get_hashname(char *ext_name, uint version, char ** hash_name)
 	return SUCCESS;
 }
 
+/* This function is called from zend_startup_extensions function after all
+ * extensions have gone through MINIT.
+ * This will call all the callbacks */
 int zend_ext_api_callback()
 {
 	zend_llist_element *element;
@@ -238,6 +247,7 @@ int zend_ext_api_callback()
 	return SUCCESS;
 }
 
+/* Create the llist to store the set of versions for each extension */
 int zend_ext_api_ver_llist_create(zend_ext_api_ver_llist **ll)
 {
 	*ll = pemalloc(sizeof(zend_ext_api_ver_llist), _REG_VER_PRST);
@@ -253,6 +263,7 @@ int zend_ext_api_ver_llist_create(zend_ext_api_ver_llist **ll)
 	return SUCCESS;
 }
 
+/* Add an element to the list of versions */
 int zend_ext_api_ver_llist_add(zend_ext_api_ver_llist *ll, uint version)
 {
 	zend_ext_api_ver_llist_node *n = pemalloc(sizeof(zend_ext_api_ver_llist_node), _REG_VER_PRST);
@@ -270,6 +281,7 @@ int zend_ext_api_ver_llist_add(zend_ext_api_ver_llist *ll, uint version)
 	return SUCCESS;
 }
 
+/* Destroy the llist of versions */
 int zend_ext_api_ver_llist_destroy(zend_ext_api_ver_llist *ll)
 {
 	zend_ext_api_ver_llist_node *cur = ll->first;
@@ -289,6 +301,9 @@ int zend_ext_api_ver_llist_destroy(zend_ext_api_ver_llist *ll)
 	return SUCCESS;
 }
 
+/* Add the version to the hashtable of available versions.
+ * Each entry in the hashtable (by extension name) is a llist
+ * of available versions */
 int zend_ext_api_add_version(char *ext_name, uint version_int)
 {
 	zend_ext_api_ver_llist *ll;
@@ -339,6 +354,7 @@ int zend_ext_api_add_version(char *ext_name, uint version_int)
 	return SUCCESS;
 }
 
+/* Add (register) an extension API */
 int zend_ext_api_add(char *ext_name, char *version_text, uint version_int, void *api, size_t size)
 {
 	int r;
@@ -379,6 +395,7 @@ int zend_ext_api_add(char *ext_name, char *version_text, uint version_int, void 
 	return r;
 }
 
+/* Register an API */
 ZEND_API int zend_ext_api_register(char *ext_name, char * version_text, void *api, size_t size)
 {
 	uint version_int;
@@ -395,6 +412,7 @@ ZEND_API int zend_ext_api_register(char *ext_name, char * version_text, void *ap
 	return zend_ext_api_add(ext_name, version_text, version_int, api, size);
 }
 
+/* Register an API */
 int zend_ext_api_register_int_ver(char *ext_name, uint version_int, void *api, size_t size)
 {
 	char *version_text;
@@ -416,7 +434,8 @@ int zend_ext_api_register_int_ver(char *ext_name, uint version_int, void *api, s
 	return r;
 }
 
-/* Returns 1 if exists 0 otherwise */
+/* Check if the extension API is available.
+ * Returns 1 if exists 0 otherwise */
 int zend_ext_api_exists_int_ver(char *ext_name, uint version)
 {
 	char *hash_name;
@@ -438,6 +457,7 @@ int zend_ext_api_exists_int_ver(char *ext_name, uint version)
 	return r;
 }
 
+/* Finds the highest version in a llist of versions */
 uint zend_ext_api_ver_llist_max(zend_ext_api_ver_llist *ll)
 {
 	uint m = 0;
@@ -453,6 +473,7 @@ uint zend_ext_api_ver_llist_max(zend_ext_api_ver_llist *ll)
 	return m;
 }
 
+/* Gets the latest version of the extension API */
 ZEND_API int zend_ext_api_get_latest_version(char *ext_name, uint *version)
 {
 	zend_ext_api_ver_llist *ll;
@@ -467,7 +488,8 @@ ZEND_API int zend_ext_api_get_latest_version(char *ext_name, uint *version)
 	return SUCCESS;
 }
 
-/* Returns 1 if exists 0 otherwise */
+/* Check if the extension API is available.
+ * Returns 1 if exists 0 otherwise */
 ZEND_API int zend_ext_api_exists(char *ext_name, char *version)
 {
 	uint vi;
@@ -483,6 +505,9 @@ ZEND_API int zend_ext_api_exists(char *ext_name, char *version)
 	return zend_ext_api_exists_int_ver(ext_name, vi);
 }
 
+/* Registers an callback function. The callback function would
+ * be called if the required extension API is available, after all the extensions
+ * have been initialized (MINIT) */
 ZEND_API int zend_ext_api_set_callback_int_ver(char *ext_name, uint version, void (callback_func)(void *api, char *ext_name, uint version))
 {
 	zend_ext_api_cb cb;
@@ -495,6 +520,9 @@ ZEND_API int zend_ext_api_set_callback_int_ver(char *ext_name, uint version, voi
 	return SUCCESS;
 }
 
+/* Registers an callback function. The callback function would
+ * be called if the required extension API is available, after all the extensions
+ * have been initialized (MINIT) */
 ZEND_API int zend_ext_api_set_callback(char *ext_name, char *version, void (callback_func)(void *api, char *ext_name, uint version))
 {
 	uint vi;
@@ -507,6 +535,7 @@ ZEND_API int zend_ext_api_set_callback(char *ext_name, char *version, void (call
 	return zend_ext_api_set_callback_int_ver(ext_name, vi, callback_func);
 }
 
+/* Retrives the API if available */
 int zend_ext_api_get_int_ver(char *ext_name, uint version, void **api)
 {
 	char *hash_name;
@@ -534,6 +563,7 @@ int zend_ext_api_get_int_ver(char *ext_name, uint version, void **api)
 	return SUCCESS;
 }
 
+/* Retrives the API if available */
 ZEND_API int zend_ext_api_get(char *ext_name, char *version, void **api)
 {
 	uint vi;
