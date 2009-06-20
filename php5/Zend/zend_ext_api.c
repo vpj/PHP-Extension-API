@@ -4,11 +4,22 @@
 
 #define _REG_PRST ext_api_registry.persistent
 #define _REG_VER_PRST ext_api_reg_ver.persistent
+#define _LIST_CB ext_api_callback_list.persistent
 
 /* Stores all the APIs */
 HashTable ext_api_registry;
 /* Stores the versions */
 HashTable ext_api_reg_ver;
+zend_llist ext_api_callback_list;
+
+/* Structure for Callbacks */
+struct _zend_ext_api_cb {
+	char *ext_name;
+	uint version;
+	void (*callback_func)(void *api, char *ext_name, uint version);
+};
+
+typedef struct _zend_ext_api_cb zend_ext_api_cb;
 
 /* Wrapper structure for APIs */
 struct _zend_ext_api_extension {
@@ -39,11 +50,13 @@ struct _zend_ext_api_ver_llist {
 /* Function prototypes */
 int zend_ext_api_ver_llist_destroy(zend_ext_api_ver_llist *ll);
 
+/* Free the versions linked list */
 void zend_ext_api_free_ver_llist(void *llist)
 {
 	zend_ext_api_ver_llist_destroy((zend_ext_api_ver_llist *)llist);
 }
 
+/* Free extension API structure */
 void zend_ext_api_free_api(void *api)
 {
 	zend_ext_api_extension *ext_api = (zend_ext_api_extension *)api;
@@ -58,12 +71,22 @@ void zend_ext_api_free_api(void *api)
 	/* pefree(ext_api, ext_api_registry.persistent); */
 }
 
+/* Free callback structure */
+void zend_ext_api_free_callback(void *callback)
+{
+	zend_ext_api_cb *cb = (zend_ext_api_cb *)callback;
+
+	pefree(cb->ext_name, _LIST_CB);
+}
+
+/* Free hashtables */
 void zend_ext_api_destroy()
 {
 	/* Destroy the hash table */
 	/* zend_hash_graceful_reverse_destroy(&module_registry); We don't need this at the moment*/
 	zend_hash_destroy(&ext_api_registry);
 	zend_hash_destroy(&ext_api_reg_ver);
+	zend_llist_destroy(&ext_api_callback_list);
 }
 
 void zend_ext_api_init()
@@ -81,6 +104,8 @@ void zend_ext_api_init()
 		ZEND_PUTS("Unable to initialize the versions HashTable\n");
 #endif
 	}
+	
+	zend_llist_init(&ext_api_callback_list, sizeof(zend_ext_api_cb), zend_ext_api_free_callback, 1);
 }
 
 zend_ext_api_extension * zend_ext_api_create(char *ext_name, uint version, char *version_text, void *api, size_t size)
@@ -186,6 +211,30 @@ int zend_ext_api_get_hashname(char *ext_name, uint version, char ** hash_name)
 
 	sprintf(*hash_name, "%s-%x", ext_name, version);
 
+	return SUCCESS;
+}
+
+int zend_ext_api_callback()
+{
+	zend_llist_element *element;
+	void *api;
+	zend_ext_api_cb *cb;
+	char *ext_name;
+
+	php_printf("Callbacks...");
+
+	for(element = ext_api_callback_list.head; element; element = element->next)
+	{
+		cb = (zend_ext_api_cb *) element->data;
+
+		if(zend_ext_api_get_int_ver(cb->ext_name, cb->version, &api) == SUCCESS)
+		{
+			ext_name = strdup(cb->ext_name);
+
+			cb->callback_func(api, ext_name, cb->version);
+		}
+	}
+	
 	return SUCCESS;
 }
 
@@ -432,6 +481,30 @@ ZEND_API int zend_ext_api_exists(char *ext_name, char *version)
 	}
 							
 	return zend_ext_api_exists_int_ver(ext_name, vi);
+}
+
+ZEND_API int zend_ext_api_set_callback_int_ver(char *ext_name, uint version, void (callback_func)(void *api, char *ext_name, uint version))
+{
+	zend_ext_api_cb cb;
+	cb.ext_name = strdup(ext_name);
+	cb.version = version;
+	cb.callback_func = callback_func;
+
+	zend_llist_add_element(&ext_api_callback_list, &cb);
+
+	return SUCCESS;
+}
+
+ZEND_API int zend_ext_api_set_callback(char *ext_name, char *version, void (callback_func)(void *api, char *ext_name, uint version))
+{
+	uint vi;
+
+	if(zend_ext_api_version_toi(version, &vi) == FAILURE)
+	{
+		return FAILURE;
+	}
+
+	return zend_ext_api_set_callback_int_ver(ext_name, vi, callback_func);
 }
 
 int zend_ext_api_get_int_ver(char *ext_name, uint version, void **api)

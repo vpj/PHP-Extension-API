@@ -10,4 +10,7 @@ ZEND_API int zend_ext_api_register(char *ext_name, char * version, void *api, si
 ZEND_API int zend_ext_api_exists(char *ext_name, char * version);
 
 ZEND_API int zend_ext_api_get(char *ext_name, char * version, void **api);
+
+int zend_ext_api_callback();
+
 #endif
