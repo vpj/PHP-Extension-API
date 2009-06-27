@@ -20,7 +20,6 @@
 /* $Id: zend_extensions.c,v 1.48.2.1.2.3.2.6 2009/04/08 13:26:35 mattwil Exp $ */
 
 #include "zend_extensions.h"
-#include "zend_ext_api.h"
 
 ZEND_API zend_llist zend_extensions;
 static int last_resource_number;
@@ -151,7 +150,7 @@ int zend_startup_extensions()
 {
 	zend_llist_apply_with_del(&zend_extensions, (int (*)(void *)) zend_extension_startup);
 	/* VPJ: EXTENSION API CALLBACKS */
-	zend_ext_api_callback();
+	/* zend_ext_api_callback(); */
 	return SUCCESS;
 }
 

@@ -230,8 +230,6 @@ int zend_ext_api_callback()
 	zend_ext_api_cb *cb;
 	char *ext_name;
 
-	php_printf("Callbacks...");
-
 	for(element = ext_api_callback_list.head; element; element = element->next)
 	{
 		cb = (zend_ext_api_cb *) element->data;

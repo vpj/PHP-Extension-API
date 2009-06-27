@@ -81,6 +81,7 @@
 #include "zend_indent.h"
 #include "zend_extensions.h"
 #include "zend_ini.h"
+#include "zend_ext_api.h"
 
 #include "php_content_types.h"
 #include "php_ticks.h"
@@ -1983,6 +1984,9 @@ int php_module_startup(sapi_module_struct *sf, zend_module_entry *additional_mod
 
 	/* start Zend extensions */
 	zend_startup_extensions();
+
+	/* Extension API callbacks */
+	zend_ext_api_callback();
 
 	/* register additional functions */
 	if (sapi_module.additional_functions) {
