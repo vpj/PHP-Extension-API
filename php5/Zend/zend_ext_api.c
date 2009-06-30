@@ -411,7 +411,7 @@ ZEND_API int zend_ext_api_register(char *ext_name, char * version_text, void *ap
 }
 
 /* Register an API */
-int zend_ext_api_register_int_ver(char *ext_name, uint version_int, void *api, size_t size)
+ZEND_API int zend_ext_api_register_int_ver(char *ext_name, uint version_int, void *api, size_t size)
 {
 	char *version_text;
 	int r;
@@ -434,7 +434,7 @@ int zend_ext_api_register_int_ver(char *ext_name, uint version_int, void *api, s
 
 /* Check if the extension API is available.
  * Returns 1 if exists 0 otherwise */
-int zend_ext_api_exists_int_ver(char *ext_name, uint version)
+ZEND_API int zend_ext_api_exists_int_ver(char *ext_name, uint version)
 {
 	char *hash_name;
 	int r;
@@ -534,7 +534,7 @@ ZEND_API int zend_ext_api_set_callback(char *ext_name, char *version, void (call
 }
 
 /* Retrives the API if available */
-int zend_ext_api_get_int_ver(char *ext_name, uint version, void **api)
+ZEND_API int zend_ext_api_get_int_ver(char *ext_name, uint version, void **api)
 {
 	char *hash_name;
 	zend_ext_api_extension *ext_api;
