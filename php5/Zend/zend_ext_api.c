@@ -16,7 +16,9 @@ zend_llist ext_api_callback_list;
 struct _zend_ext_api_cb {
 	char *ext_name;
 	uint version;
+	int latest;
 	void (*callback_func)(void *api, char *ext_name, uint version);
+	void (*callback_func_empty)();
 };
 
 typedef struct _zend_ext_api_cb zend_ext_api_cb;
@@ -229,16 +231,39 @@ int zend_ext_api_callback()
 	void *api;
 	zend_ext_api_cb *cb;
 	char *ext_name;
+	uint version;
 
 	for(element = ext_api_callback_list.head; element; element = element->next)
 	{
 		cb = (zend_ext_api_cb *) element->data;
 
-		if(zend_ext_api_get_int_ver(cb->ext_name, cb->version, &api) == SUCCESS)
+		if(cb->ext_name)
 		{
-			ext_name = strdup(cb->ext_name);
+			if(!cb->latest)
+			{
+				if(zend_ext_api_get_int_ver(cb->ext_name, cb->version, &api) == SUCCESS)
+				{	
+					ext_name = strdup(cb->ext_name);
 
-			cb->callback_func(api, ext_name, cb->version);
+					cb->callback_func(api, ext_name, cb->version);
+				}
+			}
+			else
+			{
+				if(zend_ext_api_get_latest_version(cb->ext_name, &version) == SUCCESS)
+				{	
+					if(zend_ext_api_get_int_ver(cb->ext_name, version, &api) == SUCCESS)
+					{	
+						ext_name = strdup(cb->ext_name);
+
+						cb->callback_func(api, ext_name, version);
+					}
+				}
+			}
+		}
+		else
+		{
+			cb->callback_func_empty();
 		}
 	}
 	
@@ -506,12 +531,28 @@ ZEND_API int zend_ext_api_exists(char *ext_name, char *version)
 /* Registers an callback function. The callback function would
  * be called if the required extension API is available, after all the extensions
  * have been initialized (MINIT) */
-ZEND_API int zend_ext_api_set_callback_int_ver(char *ext_name, uint version, void (callback_func)(void *api, char *ext_name, uint version))
+int zend_ext_api_set_callback_int_ver(char *ext_name, uint version, int latest, void (*callback_func)(void *api, char *ext_name, uint version))
 {
 	zend_ext_api_cb cb;
 	cb.ext_name = strdup(ext_name);
 	cb.version = version;
+	cb.latest = latest;
 	cb.callback_func = callback_func;
+	cb.callback_func_empty = NULL;
+
+	zend_llist_add_element(&ext_api_callback_list, &cb);
+
+	return SUCCESS;
+}
+
+ZEND_API int zend_ext_api_set_empty_callback(void (*callback)())
+{
+	zend_ext_api_cb cb;
+	cb.ext_name = NULL;
+	cb.version = 0;
+	cb.latest = 0;
+	cb.callback_func = NULL;
+	cb.callback_func_empty = callback;
 
 	zend_llist_add_element(&ext_api_callback_list, &cb);
 
@@ -520,17 +561,24 @@ ZEND_API int zend_ext_api_set_callback_int_ver(char *ext_name, uint version, voi
 
 /* Registers an callback function. The callback function would
  * be called if the required extension API is available, after all the extensions
- * have been initialized (MINIT) */
-ZEND_API int zend_ext_api_set_callback(char *ext_name, char *version, void (callback_func)(void *api, char *ext_name, uint version))
+ * have been initialized (MINIT) 
+ *
+ * If version is NULL the latest API is used */
+ZEND_API int zend_ext_api_set_callback(char *ext_name, char *version, void (*callback_func)(void *api, char *ext_name, uint version))
 {
 	uint vi;
+
+	if(!version)
+	{
+		return zend_ext_api_set_callback_int_ver(ext_name, 0, 1, callback_func);
+	}
 
 	if(zend_ext_api_version_toi(version, &vi) == FAILURE)
 	{
 		return FAILURE;
 	}
 
-	return zend_ext_api_set_callback_int_ver(ext_name, vi, callback_func);
+	return zend_ext_api_set_callback_int_ver(ext_name, vi, 0, callback_func);
 }
 
 /* Retrives the API if available */
