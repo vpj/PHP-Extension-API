@@ -239,6 +239,7 @@ int zend_eapi_callback()
 
 		if(cb->ext_name)
 		{
+			/* If the callback has to be called with the API of the specified version */
 			if(!cb->latest)
 			{
 				if(zend_eapi_get_int_ver(cb->ext_name, cb->version, &api) == SUCCESS)
@@ -248,8 +249,10 @@ int zend_eapi_callback()
 					cb->callback_func(api, ext_name, cb->version);
 				}
 			}
+			/* If the callback has to be called with the latest API */
 			else
 			{
+				/* Get the latest version */
 				if(zend_eapi_get_latest_version(cb->ext_name, &version) == SUCCESS)
 				{	
 					if(zend_eapi_get_int_ver(cb->ext_name, version, &api) == SUCCESS)
@@ -261,6 +264,7 @@ int zend_eapi_callback()
 				}
 			}
 		}
+		/* If the empty callback has to be called */
 		else
 		{
 			cb->callback_func_empty();
@@ -403,10 +407,12 @@ int zend_eapi_add(char *ext_name, char *version_text, uint version_int, void *ap
 		return FAILURE;
 	}
 
+	/* Add the API to the hash table */
 	r = zend_hash_add(&eapi_registry, hash_name, strlen(hash_name) + 1, ext_api, sizeof(zend_eapi_extension), NULL);
 
 	if(r == SUCCESS)
 	{
+		/* Add the version to the list of versions */
 		r = zend_eapi_add_version(ext_name, version_int);
 	}
 
@@ -435,7 +441,7 @@ ZEND_API int zend_eapi_register(char *ext_name, char * version_text, void *api, 
 	return zend_eapi_add(ext_name, version_text, version_int, api, size);
 }
 
-/* Register an API */
+/* Register an API with the version specified as an uint */
 ZEND_API int zend_eapi_register_int_ver(char *ext_name, uint version_int, void *api, size_t size)
 {
 	char *version_text;
@@ -480,7 +486,9 @@ ZEND_API int zend_eapi_exists_int_ver(char *ext_name, uint version)
 	return r;
 }
 
-/* Finds the highest version in a llist of versions */
+/* Finds the highest version in a llist of versions
+ * TODO: Keep the highest version at the top so that
+ * the time complexity is O(1) */
 uint zend_eapi_ver_llist_max(zend_eapi_ver_llist *ll)
 {
 	uint m = 0;
@@ -530,7 +538,8 @@ ZEND_API int zend_eapi_exists(char *ext_name, char *version)
 
 /* Registers an callback function. The callback function would
  * be called if the required extension API is available, after all the extensions
- * have been initialized (MINIT) */
+ * have been initialized (MINIT).
+ * If latest is not 0 then the version is ignored and the API of the latest version is used */
 int zend_eapi_set_callback_int_ver(char *ext_name, uint version, int latest, void (*callback_func)(void *api, char *ext_name, uint version))
 {
 	zend_eapi_cb cb;
@@ -545,6 +554,7 @@ int zend_eapi_set_callback_int_ver(char *ext_name, uint version, int latest, voi
 	return SUCCESS;
 }
 
+/* Sets an empty callback which accepts 0 parameters */
 ZEND_API int zend_eapi_set_empty_callback(void (*callback)())
 {
 	zend_eapi_cb cb;
@@ -581,7 +591,7 @@ ZEND_API int zend_eapi_set_callback(char *ext_name, char *version, void (*callba
 	return zend_eapi_set_callback_int_ver(ext_name, vi, 0, callback_func);
 }
 
-/* Retrives the API if available */
+/* Retrives the API if available; otherwise returns FAILURE */
 ZEND_API int zend_eapi_get_int_ver(char *ext_name, uint version, void **api)
 {
 	char *hash_name;
@@ -609,7 +619,7 @@ ZEND_API int zend_eapi_get_int_ver(char *ext_name, uint version, void **api)
 	return SUCCESS;
 }
 
-/* Retrives the API if available */
+/* Retrives the API if available; otherwise returns FAILURE */
 ZEND_API int zend_eapi_get(char *ext_name, char *version, void **api)
 {
 	uint vi;
