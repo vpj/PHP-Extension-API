@@ -1986,7 +1986,7 @@ int php_module_startup(sapi_module_struct *sf, zend_module_entry *additional_mod
 	zend_startup_extensions();
 
 	/* Extension API callbacks */
-	zend_ext_api_callback();
+	zend_eapi_callback();
 
 	/* register additional functions */
 	if (sapi_module.additional_functions) {

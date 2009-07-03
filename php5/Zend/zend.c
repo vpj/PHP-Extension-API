@@ -660,7 +660,7 @@ int zend_startup(zend_utility_functions *utility_functions, char **extensions TS
 	zend_hash_init_ex(GLOBAL_CONSTANTS_TABLE, 20, NULL, ZEND_CONSTANT_DTOR, 1, 0);
 
 	zend_hash_init_ex(&module_registry, 50, NULL, ZEND_MODULE_DTOR, 1, 0);
-	zend_ext_api_init();
+	zend_eapi_init();
 
 	zend_init_rsrc_list_dtors();
 
@@ -760,7 +760,7 @@ void zend_shutdown(TSRMLS_D) /* {{{ */
 #endif
 	zend_destroy_rsrc_list(&EG(persistent_list) TSRMLS_CC);
 	zend_hash_graceful_reverse_destroy(&module_registry);
-    zend_ext_api_destroy();
+    zend_eapi_destroy();
 
 	zend_hash_destroy(GLOBAL_FUNCTION_TABLE);
 	zend_hash_destroy(GLOBAL_CLASS_TABLE);
