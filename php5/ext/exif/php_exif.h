@@ -23,6 +23,14 @@
 extern zend_module_entry exif_module_entry;
 #define phpext_exif_ptr &exif_module_entry
 
+/*
+struct MBSTRING_API_ {
+	int (*check_encoding_list)(const char *);
+	char * (*convert_encoding)(const char *, size_t, const char *, const char *, size_t *);
+};
+typedef struct MBSTRING_API_ MBSTRING_API;
+MBSTRING_API *mbstring_api;
+*/
 PHP_FUNCTION(exif_read_data);
 PHP_FUNCTION(exif_tagname);
 PHP_FUNCTION(exif_thumbnail);

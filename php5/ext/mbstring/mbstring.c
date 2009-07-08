@@ -764,6 +764,12 @@ php_mb_parse_encoding_list(const char *value, int value_length, enum mbfl_no_enc
 }
 /* }}} */
 
+/* Test wrapper for EXT API */
+int php_mb_check_encoding_list_wrapper(const char *encoding_list TSRMLS_DC) {
+	php_printf("php_mb_check_encoding_list\n");
+	return php_mb_check_encoding_list(encoding_list);
+}
+
 /* {{{ MBSTRING_API php_mb_check_encoding_list */
 MBSTRING_API int php_mb_check_encoding_list(const char *encoding_list TSRMLS_DC) {
 	return php_mb_parse_encoding_list(encoding_list, strlen(encoding_list), NULL, NULL, 0 TSRMLS_CC);	
@@ -1341,9 +1347,22 @@ static PHP_GSHUTDOWN_FUNCTION(mbstring)
 }
 /* }}} */
 
+char * php_mb_convert_encoding_wrapper(const char *input, size_t length, const char *_to_encoding, const char *_from_encodings, size_t *output_len TSRMLS_DC);
+int php_mb_check_encoding_list_wrapper(const char *encoding_list TSRMLS_DC);
+
 /* {{{ PHP_MINIT_FUNCTION(mbstring) */
 PHP_MINIT_FUNCTION(mbstring)
 {
+	/* Setting API structure */
+	struct API {
+		int (*check_encoding_list)(const char *);
+		char * (*convert_encoding)(const char *, size_t, const char *, const char *, size_t *);
+	};
+
+	struct API api;
+	api.check_encoding_list = php_mb_check_encoding_list_wrapper;
+	api.convert_encoding = php_mb_convert_encoding_wrapper;
+
 	__mbfl_allocators = &_php_mb_allocators;
 
 	REGISTER_INI_ENTRIES();
@@ -1363,6 +1382,8 @@ PHP_MINIT_FUNCTION(mbstring)
 	REGISTER_LONG_CONSTANT("MB_CASE_UPPER", PHP_UNICODE_CASE_UPPER, CONST_CS | CONST_PERSISTENT);
 	REGISTER_LONG_CONSTANT("MB_CASE_LOWER", PHP_UNICODE_CASE_LOWER, CONST_CS | CONST_PERSISTENT);
 	REGISTER_LONG_CONSTANT("MB_CASE_TITLE", PHP_UNICODE_CASE_TITLE, CONST_CS | CONST_PERSISTENT);
+
+	zend_eapi_register("mbstring", "1.0", (void *)&api, sizeof(api));
 
 #if HAVE_MBREGEX
 	PHP_MINIT(mb_regex) (INIT_FUNC_ARGS_PASSTHRU);
@@ -2762,6 +2783,13 @@ PHP_FUNCTION(mb_strimwidth)
 	RETVAL_STRINGL((char *)ret->val, ret->len, 0); /* the string is already strdup()'ed */
 }
 /* }}} */
+
+char * php_mb_convert_encoding_wrapper(const char *input, size_t length, const char *_to_encoding, const char *_from_encodings, size_t *output_len TSRMLS_DC)
+{
+	php_printf("php_mb_convert_encoding\n");
+
+	return php_mb_convert_encoding(input, length, _to_encoding, _from_encodings, output_len);
+}
 
 /* {{{ MBSTRING_API char *php_mb_convert_encoding() */
 MBSTRING_API char * php_mb_convert_encoding(const char *input, size_t length, const char *_to_encoding, const char *_from_encodings, size_t *output_len TSRMLS_DC)

@@ -171,13 +171,27 @@ ZEND_DECLARE_MODULE_GLOBALS(exif)
 #define EXIF_G(v) (exif_globals.v)
 #endif
  
+/* MBSTRING API structure and the callback */
+
+typedef struct  {
+	int (*check_encoding_list)(const char *);
+	char * (*convert_encoding)(const char *, size_t, const char *, const char *, size_t *);
+} mbstring_api_struct;
+
+static mbstring_api_struct *mbstring_api;
+
+void mbstring_api_callback(void *p_api, char *ext_name, uint version)
+{
+	*mbstring_api = *((mbstring_api_struct*)p_api);
+}
+
 /* {{{ PHP_INI
  */
 
 ZEND_INI_MH(OnUpdateEncode)
 {
 #if EXIF_USE_MBSTRING
-	if (new_value && strlen(new_value) && !php_mb_check_encoding_list(new_value TSRMLS_CC)) {
+	if (new_value && strlen(new_value) && !mbstring_api->check_encoding_list(new_value TSRMLS_CC)) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Illegal encoding ignored: '%s'", new_value);
 		return FAILURE;
 	}
@@ -188,7 +202,7 @@ ZEND_INI_MH(OnUpdateEncode)
 ZEND_INI_MH(OnUpdateDecode)
 {
 #if EXIF_USE_MBSTRING
-	if (!php_mb_check_encoding_list(new_value TSRMLS_CC)) {
+	if (!mbstring_api->check_encoding_list(new_value TSRMLS_CC)) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Illegal encoding ignored: '%s'", new_value);
 		return FAILURE;
 	}
@@ -205,7 +219,8 @@ PHP_INI_BEGIN()
     STD_PHP_INI_ENTRY("exif.decode_jis_intel",        "JIS",         PHP_INI_ALL, OnUpdateDecode, decode_jis_le,     zend_exif_globals, exif_globals)
 PHP_INI_END()
 /* }}} */
- 
+
+
 /* {{{ PHP_GINIT_FUNCTION
  */
 static PHP_GINIT_FUNCTION(exif)
@@ -224,7 +239,11 @@ static PHP_GINIT_FUNCTION(exif)
 PHP_MINIT_FUNCTION(exif)
 {
 	REGISTER_INI_ENTRIES();
-	REGISTER_LONG_CONSTANT("EXIF_USE_MBSTRING", EXIF_USE_MBSTRING, CONST_CS | CONST_PERSISTENT); 
+	REGISTER_LONG_CONSTANT("EXIF_USE_MBSTRING", EXIF_USE_MBSTRING, CONST_CS | CONST_PERSISTENT);
+	/* Setting callback */
+	zend_eapi_set_callback("mbstring", "1.0", mbstring_api_callback);
+	mbstring_api = NULL;
+
 	return SUCCESS;
 }
 /* }}} */
@@ -2588,7 +2607,7 @@ static int exif_process_undefined(char **result, char *value, size_t byte_count 
 
 /* {{{ exif_process_string_raw
  * Copy a string in Exif header to a character string returns length of allocated buffer if any. */
-#if !EXIF_USE_MBSTRING
+/*#if !EXIF_USE_MBSTRING*/
 static int exif_process_string_raw(char **result, char *value, size_t byte_count) {
 	/* we cannot use strlcpy - here the problem is that we have to copy NUL
 	 * chars up to byte_count, we also have to add a single NUL character to
@@ -2602,7 +2621,7 @@ static int exif_process_string_raw(char **result, char *value, size_t byte_count
 	}
 	return 0;
 }
-#endif
+/*#endif*/
 /* }}} */
 
 /* {{{ exif_process_string
@@ -2630,10 +2649,10 @@ static int exif_process_user_comment(image_info_type *ImageInfo, char **pszInfoP
 {
 	int   a;
 
-#if EXIF_USE_MBSTRING
+/*#if EXIF_USE_MBSTRING*/
 	char  *decode;
 	size_t len;;
-#endif
+/*#endif*/
 
 	*pszEncoding = NULL;
 	/* Copy the comment */
@@ -2642,28 +2661,31 @@ static int exif_process_user_comment(image_info_type *ImageInfo, char **pszInfoP
 			*pszEncoding = estrdup((const char*)szValuePtr);
 			szValuePtr = szValuePtr+8;
 			ByteCount -= 8;
-#if EXIF_USE_MBSTRING
-			/* First try to detect BOM: ZERO WIDTH NOBREAK SPACE (FEFF 16) 
-			 * since we have no encoding support for the BOM yet we skip that.
-			 */
-			if (!memcmp(szValuePtr, "\xFE\xFF", 2)) {
-				decode = "UCS-2BE";
-				szValuePtr = szValuePtr+2;
-				ByteCount -= 2;
-			} else if (!memcmp(szValuePtr, "\xFF\xFE", 2)) {
-				decode = "UCS-2LE";
-				szValuePtr = szValuePtr+2;
-				ByteCount -= 2;
-			} else if (ImageInfo->motorola_intel) {
-				decode = ImageInfo->decode_unicode_be;
-			} else {
-				decode = ImageInfo->decode_unicode_le;
+			if(mbstring_api)
+			{
+				/* First try to detect BOM: ZERO WIDTH NOBREAK SPACE (FEFF 16) 
+				 * since we have no encoding support for the BOM yet we skip that.
+				 */
+				if (!memcmp(szValuePtr, "\xFE\xFF", 2)) {
+					decode = "UCS-2BE";
+					szValuePtr = szValuePtr+2;
+					ByteCount -= 2;
+				} else if (!memcmp(szValuePtr, "\xFF\xFE", 2)) {
+					decode = "UCS-2LE";
+					szValuePtr = szValuePtr+2;
+					ByteCount -= 2;
+				} else if (ImageInfo->motorola_intel) {
+					decode = ImageInfo->decode_unicode_be;
+				} else {
+					decode = ImageInfo->decode_unicode_le;
+				}
+				*pszInfoPtr = mbstring_api->convert_encoding(szValuePtr, ByteCount, ImageInfo->encode_unicode, decode, &len TSRMLS_CC);
+				return len;
 			}
-			*pszInfoPtr = php_mb_convert_encoding(szValuePtr, ByteCount, ImageInfo->encode_unicode, decode, &len TSRMLS_CC);
-			return len;
-#else
-			return exif_process_string_raw(pszInfoPtr, szValuePtr, ByteCount);
-#endif
+			else
+			{
+				return exif_process_string_raw(pszInfoPtr, szValuePtr, ByteCount);
+			}
 		} else
 		if (!memcmp(szValuePtr, "ASCII\0\0\0", 8)) {
 			*pszEncoding = estrdup((const char*)szValuePtr);
@@ -2675,16 +2697,19 @@ static int exif_process_user_comment(image_info_type *ImageInfo, char **pszInfoP
 			*pszEncoding = estrdup((const char*)szValuePtr);
 			szValuePtr = szValuePtr+8;
 			ByteCount -= 8;
-#if EXIF_USE_MBSTRING
-			if (ImageInfo->motorola_intel) {
-				*pszInfoPtr = php_mb_convert_encoding(szValuePtr, ByteCount, ImageInfo->encode_jis, ImageInfo->decode_jis_be, &len TSRMLS_CC);
-			} else {
-				*pszInfoPtr = php_mb_convert_encoding(szValuePtr, ByteCount, ImageInfo->encode_jis, ImageInfo->decode_jis_le, &len TSRMLS_CC);
+			if(mbstring_api)
+			{
+				if (ImageInfo->motorola_intel) {
+					*pszInfoPtr = mbstring_api->convert_encoding(szValuePtr, ByteCount, ImageInfo->encode_jis, ImageInfo->decode_jis_be, &len TSRMLS_CC);
+				} else {
+					*pszInfoPtr = mbstring_api->convert_encoding(szValuePtr, ByteCount, ImageInfo->encode_jis, ImageInfo->decode_jis_le, &len TSRMLS_CC);
+				}
+				return len;
 			}
-			return len;
-#else
-			return exif_process_string_raw(pszInfoPtr, szValuePtr, ByteCount);
-#endif
+			else
+			{
+				return exif_process_string_raw(pszInfoPtr, szValuePtr, ByteCount);
+			}
 		} else
 		if (!memcmp(szValuePtr, "\0\0\0\0\0\0\0\0", 8)) {
 			/* 8 NULL means undefined and should be ASCII... */
@@ -2714,19 +2739,17 @@ static int exif_process_unicode(image_info_type *ImageInfo, xp_field_type *xp_fi
 	xp_field->tag = tag;	
 
 	/* Copy the comment */
-#if EXIF_USE_MBSTRING
+	if(mbstring_api)
+	{
 /*  What if MS supports big-endian with XP? */
-/*	if (ImageInfo->motorola_intel) {
-		xp_field->value = php_mb_convert_encoding(szValuePtr, ByteCount, ImageInfo->encode_unicode, ImageInfo->decode_unicode_be, &xp_field->size TSRMLS_CC);
-	} else {
-		xp_field->value = php_mb_convert_encoding(szValuePtr, ByteCount, ImageInfo->encode_unicode, ImageInfo->decode_unicode_le, &xp_field->size TSRMLS_CC);
-	}*/
-	xp_field->value = php_mb_convert_encoding(szValuePtr, ByteCount, ImageInfo->encode_unicode, ImageInfo->decode_unicode_le, &xp_field->size TSRMLS_CC);
-	return xp_field->size;
-#else
-	xp_field->size = exif_process_string_raw(&xp_field->value, szValuePtr, ByteCount);
-	return xp_field->size;
-#endif
+		xp_field->value = mbstring_api->convert_encoding(szValuePtr, ByteCount, ImageInfo->encode_unicode, ImageInfo->decode_unicode_le, &xp_field->size TSRMLS_CC);
+		return xp_field->size;
+	}
+	else
+	{
+		xp_field->size = exif_process_string_raw(&xp_field->value, szValuePtr, ByteCount);
+		return xp_field->size;
+	}
 }
 /* }}} */
 
