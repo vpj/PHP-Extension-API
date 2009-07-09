@@ -2800,6 +2800,7 @@ MBSTRING_API char * php_mb_convert_encoding(const char *input, size_t length, co
 	int size, *list;
 	char *output=NULL;
 
+	php_printf("Convert encoding\n");
 	if (output_len) {
 		*output_len = 0;
 	}

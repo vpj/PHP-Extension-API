@@ -182,6 +182,9 @@ static mbstring_api_struct *mbstring_api;
 
 void mbstring_api_callback(void *p_api, char *ext_name, uint version)
 {
+	mbstring_api = pemalloc(sizeof(mbstring_api_struct), 1);
+	php_printf("callback\n");
+
 	*mbstring_api = *((mbstring_api_struct*)p_api);
 }
 
@@ -191,7 +194,8 @@ void mbstring_api_callback(void *p_api, char *ext_name, uint version)
 ZEND_INI_MH(OnUpdateEncode)
 {
 #if EXIF_USE_MBSTRING
-	if (new_value && strlen(new_value) && !mbstring_api->check_encoding_list(new_value TSRMLS_CC)) {
+	php_printf("INI\n");
+	if (new_value && strlen(new_value) && !php_mb_check_encoding_list(new_value TSRMLS_CC)) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Illegal encoding ignored: '%s'", new_value);
 		return FAILURE;
 	}
@@ -202,7 +206,7 @@ ZEND_INI_MH(OnUpdateEncode)
 ZEND_INI_MH(OnUpdateDecode)
 {
 #if EXIF_USE_MBSTRING
-	if (!mbstring_api->check_encoding_list(new_value TSRMLS_CC)) {
+	if (!php_mb_check_encoding_list(new_value TSRMLS_CC)) {
 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Illegal encoding ignored: '%s'", new_value);
 		return FAILURE;
 	}
@@ -243,6 +247,7 @@ PHP_MINIT_FUNCTION(exif)
 	/* Setting callback */
 	zend_eapi_set_callback("mbstring", "1.0", mbstring_api_callback);
 	mbstring_api = NULL;
+	php_printf("MINIT\n");
 
 	return SUCCESS;
 }

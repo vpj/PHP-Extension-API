@@ -542,14 +542,16 @@ ZEND_API int zend_eapi_exists(char *ext_name, char *version)
  * If latest is not 0 then the version is ignored and the API of the latest version is used */
 int zend_eapi_set_callback_int_ver(char *ext_name, uint version, int latest, void (*callback_func)(void *api, char *ext_name, uint version))
 {
-	zend_eapi_cb cb;
-	cb.ext_name = strdup(ext_name);
-	cb.version = version;
-	cb.latest = latest;
-	cb.callback_func = callback_func;
-	cb.callback_func_empty = NULL;
+	zend_eapi_cb *cb = (zend_eapi_cb *)pemalloc(sizeof(zend_eapi_cb), _REG_PRST);
+	cb->ext_name = strdup(ext_name);
+	cb->version = version;
+	cb->latest = latest;
+	cb->callback_func = callback_func;
+	cb->callback_func_empty = NULL;
 
-	zend_llist_add_element(&eapi_callback_list, &cb);
+	zend_llist_add_element(&eapi_callback_list, cb);
+	
+	/*pefree(cb, _REG_PRST);*/
 
 	return SUCCESS;
 }
