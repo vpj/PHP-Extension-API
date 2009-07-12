@@ -764,6 +764,8 @@ php_mb_parse_encoding_list(const char *value, int value_length, enum mbfl_no_enc
 }
 /* }}} */
 
+#define php_printf(s) ;
+
 /* Test wrapper for EXT API */
 int php_mb_check_encoding_list_wrapper(const char *encoding_list TSRMLS_DC) {
 	php_printf("php_mb_check_encoding_list\n");

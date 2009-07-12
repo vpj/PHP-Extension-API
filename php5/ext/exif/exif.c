@@ -180,12 +180,20 @@ typedef struct  {
 
 static mbstring_api_struct *mbstring_api;
 
+static zend_ini_entry *g_ini_entries;
+static int g_module_number;
+
+#define php_printf(s) ;
+#define EAPI_REGISTER_INI_ENTRIES() zend_register_ini_entries(g_ini_entries, g_module_number TSRMLS_CC)
+#define COPY_REGISTER_INI_ENTRIES() g_ini_entries = ini_entries; g_module_number = module_number
+
 void mbstring_api_callback(void *p_api, char *ext_name, uint version)
 {
 	mbstring_api = pemalloc(sizeof(mbstring_api_struct), 1);
 	php_printf("callback\n");
 
 	*mbstring_api = *((mbstring_api_struct*)p_api);
+	EAPI_REGISTER_INI_ENTRIES();
 }
 
 /* {{{ PHP_INI
@@ -193,24 +201,26 @@ void mbstring_api_callback(void *p_api, char *ext_name, uint version)
 
 ZEND_INI_MH(OnUpdateEncode)
 {
-#if EXIF_USE_MBSTRING
-	php_printf("INI\n");
-	if (new_value && strlen(new_value) && !php_mb_check_encoding_list(new_value TSRMLS_CC)) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Illegal encoding ignored: '%s'", new_value);
-		return FAILURE;
+	if(mbstring_api)
+	{
+		php_printf("INI\n");
+		if (new_value && strlen(new_value) && !mbstring_api->check_encoding_list(new_value TSRMLS_CC)) {
+			php_error_docref(NULL TSRMLS_CC, E_WARNING, "Illegal encoding ignored: '%s'", new_value);
+			return FAILURE;
+		}
 	}
-#endif
 	return OnUpdateString(entry, new_value, new_value_length, mh_arg1, mh_arg2, mh_arg3, stage TSRMLS_CC);
 }
 
 ZEND_INI_MH(OnUpdateDecode)
 {
-#if EXIF_USE_MBSTRING
-	if (!php_mb_check_encoding_list(new_value TSRMLS_CC)) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Illegal encoding ignored: '%s'", new_value);
-		return FAILURE;
+	if(mbstring_api)
+	{
+		if (!mbstring_api->check_encoding_list(new_value TSRMLS_CC)) {
+			php_error_docref(NULL TSRMLS_CC, E_WARNING, "Illegal encoding ignored: '%s'", new_value);
+			return FAILURE;
+		}
 	}
-#endif
 	return OnUpdateString(entry, new_value, new_value_length, mh_arg1, mh_arg2, mh_arg3, stage TSRMLS_CC);
 }
 
@@ -242,7 +252,8 @@ static PHP_GINIT_FUNCTION(exif)
    Get the size of an image as 4-element array */
 PHP_MINIT_FUNCTION(exif)
 {
-	REGISTER_INI_ENTRIES();
+//	REGISTER_INI_ENTRIES();
+	COPY_REGISTER_INI_ENTRIES();
 	REGISTER_LONG_CONSTANT("EXIF_USE_MBSTRING", EXIF_USE_MBSTRING, CONST_CS | CONST_PERSISTENT);
 	/* Setting callback */
 	zend_eapi_set_callback("mbstring", "1.0", mbstring_api_callback);
