@@ -17,8 +17,10 @@ struct _zend_eapi_cb {
 	char *ext_name;
 	uint version;
 	int latest;
-	void (*callback_func)(void *api, char *ext_name, uint version);
-	void (*callback_func_empty)();
+	int module_number;
+	int type;
+	void (*callback_func)(int type, int module_number, void *api, char *ext_name, uint version);
+	void (*callback_func_empty)(int type, int module_number);
 };
 
 typedef struct _zend_eapi_cb zend_eapi_cb;
@@ -246,7 +248,7 @@ int zend_eapi_callback()
 				{	
 					ext_name = strdup(cb->ext_name);
 
-					cb->callback_func(api, ext_name, cb->version);
+					cb->callback_func(cb->type, cb->module_number, api, ext_name, cb->version);
 				}
 			}
 			/* If the callback has to be called with the latest API */
@@ -259,7 +261,7 @@ int zend_eapi_callback()
 					{	
 						ext_name = strdup(cb->ext_name);
 
-						cb->callback_func(api, ext_name, version);
+						cb->callback_func(cb->type, cb->module_number, api, ext_name, version);
 					}
 				}
 			}
@@ -267,7 +269,7 @@ int zend_eapi_callback()
 		/* If the empty callback has to be called */
 		else
 		{
-			cb->callback_func_empty();
+			cb->callback_func_empty(cb->type, cb->module_number);
 		}
 	}
 	
@@ -540,9 +542,11 @@ ZEND_API int zend_eapi_exists(char *ext_name, char *version)
  * be called if the required extension API is available, after all the extensions
  * have been initialized (MINIT).
  * If latest is not 0 then the version is ignored and the API of the latest version is used */
-int zend_eapi_set_callback_int_ver(char *ext_name, uint version, int latest, void (*callback_func)(void *api, char *ext_name, uint version))
+int zend_eapi_set_callback_int_ver(int type, int module_number, char *ext_name, uint version, int latest, void (*callback_func)(CALLBACK_FUNC_ARGS))
 {
 	zend_eapi_cb cb;
+	cb.type = type;
+	cb.module_number = module_number;
 	cb.ext_name = strdup(ext_name);
 	cb.version = version;
 	cb.latest = latest;
@@ -555,9 +559,11 @@ int zend_eapi_set_callback_int_ver(char *ext_name, uint version, int latest, voi
 }
 
 /* Sets an empty callback which accepts 0 parameters */
-ZEND_API int zend_eapi_set_empty_callback(void (*callback)())
+ZEND_API int zend_eapi_set_empty_callback(int type, int module_number, void (*callback)(EMPTY_CALLBACK_FUNC_ARGS))
 {
 	zend_eapi_cb cb;
+	cb.type = type;
+	cb.module_number = module_number;
 	cb.ext_name = NULL;
 	cb.version = 0;
 	cb.latest = 0;
@@ -574,13 +580,13 @@ ZEND_API int zend_eapi_set_empty_callback(void (*callback)())
  * have been initialized (MINIT) 
  *
  * If version is NULL the latest API is used */
-ZEND_API int zend_eapi_set_callback(char *ext_name, char *version, void (*callback_func)(void *api, char *ext_name, uint version))
+ZEND_API int zend_eapi_set_callback(int type, int module_number, char *ext_name, char *version, void (*callback_func)(CALLBACK_FUNC_ARGS))
 {
 	uint vi;
 
 	if(!version)
 	{
-		return zend_eapi_set_callback_int_ver(ext_name, 0, 1, callback_func);
+		return zend_eapi_set_callback_int_ver(type, module_number, ext_name, 0, 1, callback_func);
 	}
 
 	if(zend_eapi_version_toi(version, &vi) == FAILURE)
@@ -588,7 +594,7 @@ ZEND_API int zend_eapi_set_callback(char *ext_name, char *version, void (*callba
 		return FAILURE;
 	}
 
-	return zend_eapi_set_callback_int_ver(ext_name, vi, 0, callback_func);
+	return zend_eapi_set_callback_int_ver(type, module_number, ext_name, vi, 0, callback_func);
 }
 
 /* Retrives the API if available; otherwise returns FAILURE */
