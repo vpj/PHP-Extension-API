@@ -1,5 +1,5 @@
 #include "zend.h"
-#include "zend_ext_api.h"
+#include "zend_eapi.h"
 #include <ctype.h>
 
 #define _REG_PRST eapi_registry.persistent

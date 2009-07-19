@@ -81,6 +81,7 @@
 #include "zend_indent.h"
 #include "zend_extensions.h"
 #include "zend_ini.h"
+#include "zend_eapi.h"
 
 #include "php_content_types.h"
 #include "php_ticks.h"
