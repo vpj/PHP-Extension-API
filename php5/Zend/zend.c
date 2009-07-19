@@ -29,6 +29,7 @@
 #include "zend_builtin_functions.h"
 #include "zend_ini.h"
 #include "zend_vm.h"
+#include "zend_eapi.h"
 #include "zend_unicode.h"
 
 #ifdef ZTS
@@ -1156,6 +1157,8 @@ int zend_startup(zend_utility_functions *utility_functions, char **extensions TS
 	zend_hash_init_ex(GLOBAL_CONSTANTS_TABLE, 20, NULL, ZEND_CONSTANT_DTOR, 1, 0);
 
 	zend_hash_init_ex(&module_registry, 50, NULL, ZEND_MODULE_DTOR, 1, 0);
+
+	zend_eapi_init();
 	zend_init_rsrc_list_dtors();
 
 	/* This zval can be used to initialize allocate zval's to an uninit'ed value */
@@ -1272,6 +1275,7 @@ void zend_shutdown(TSRMLS_D) /* {{{ */
 #endif
 	zend_destroy_rsrc_list(&EG(persistent_list) TSRMLS_CC);
 	zend_hash_graceful_reverse_destroy(&module_registry);
+	zend_eapi_destroy();
 
 	zend_hash_destroy(GLOBAL_FUNCTION_TABLE);
 	zend_hash_destroy(GLOBAL_CLASS_TABLE);
