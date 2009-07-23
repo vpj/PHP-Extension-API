@@ -1,16 +1,19 @@
 #include "zend.h"
 #include "zend_eapi.h"
+#include "zend_globals.h"
+#include "zend_globals_macros.h"
 #include <ctype.h>
 
-#define _REG_PRST eapi_registry.persistent
-#define _REG_VER_PRST eapi_reg_ver.persistent
-#define _LIST_CB eapi_callback_list.persistent
+#define _REG_PRST 1
+/*eapi_registry.persistent*/
+#define _REG_VER_PRST 1
+/*eapi_reg_ver.persistent*/
+#define _LIST_CB_PRST 1
+/*eapi_callback_list.persistent*/
 
-/* Stores all the APIs */
-HashTable eapi_registry;
-/* Stores the versions */
-HashTable eapi_reg_ver;
-zend_llist eapi_callback_list;
+#define _REG EG(eapi_registry)
+#define _REG_VER EG(eapi_reg_ver)
+#define _CB_LIST EG(eapi_callback_list)
 
 /* Structure for Callbacks */
 struct _zend_eapi_cb {
@@ -72,7 +75,7 @@ void zend_eapi_free_api(void *api)
 	pefree(ext_api->api, _REG_PRST);
 	
 	/* The hash entry will be freed by the hash table */
-	/* pefree(ext_api, eapi_registry.persistent); */
+	/* pefree(ext_api, _REG.persistent); */
 }
 
 /* Free callback structure */
@@ -80,7 +83,7 @@ void zend_eapi_free_callback(void *callback)
 {
 	zend_eapi_cb *cb = (zend_eapi_cb *)callback;
 
-	pefree(cb->ext_name, _LIST_CB);
+	pefree(cb->ext_name, _LIST_CB_PRST);
 }
 
 /* Free hashtables */
@@ -88,29 +91,29 @@ void zend_eapi_destroy()
 {
 	/* Destroy the hash table */
 	/* zend_hash_graceful_reverse_destroy(&module_registry); We don't need this at the moment*/
-	zend_hash_destroy(&eapi_registry);
-	zend_hash_destroy(&eapi_reg_ver);
-	zend_llist_destroy(&eapi_callback_list);
+	zend_hash_destroy(&_REG);
+	zend_hash_destroy(&_REG_VER);
+	zend_llist_destroy(&_CB_LIST);
 }
 
 /* Initialize hashtables and lists */
 void zend_eapi_init()
 {
-	if(zend_hash_init_ex(&eapi_registry, 10, NULL, zend_eapi_free_api, /* persistent */1, 0) == FAILURE)
+	if(zend_hash_init_ex(&_REG, 10, NULL, zend_eapi_free_api, /* persistent */_REG_PRST, 0) == FAILURE)
 	{
 #if ZEND_DEBUG
 		ZEND_PUTS("Unable to initialize the HashTable\n");
 #endif
 	}
 
-	if(zend_hash_init_ex(&eapi_reg_ver, 10, NULL, zend_eapi_free_ver_llist, /* persistent */1, 0) == FAILURE)
+	if(zend_hash_init_ex(&_REG_VER, 10, NULL, zend_eapi_free_ver_llist, /* persistent */_REG_VER_PRST, 0) == FAILURE)
 	{
 #if ZEND_DEBUG
 		ZEND_PUTS("Unable to initialize the versions HashTable\n");
 #endif
 	}
 	
-	zend_llist_init(&eapi_callback_list, sizeof(zend_eapi_cb), zend_eapi_free_callback, 1);
+	zend_llist_init(&_CB_LIST, sizeof(zend_eapi_cb), zend_eapi_free_callback, _LIST_CB_PRST);
 }
 
 /* Wrap the API */
@@ -235,7 +238,7 @@ int zend_eapi_callback()
 	char *ext_name;
 	uint version;
 
-	for(element = eapi_callback_list.head; element; element = element->next)
+	for(element = _CB_LIST.head; element; element = element->next)
 	{
 		cb = (zend_eapi_cb *) element->data;
 
@@ -302,7 +305,17 @@ int zend_eapi_ver_llist_add(zend_eapi_ver_llist *ll, uint version)
 		return FAILURE;
 	}
 
-	n->version = version;
+	/* The greatest version is kept at the top of the llist */
+	if(!ll->first || version >= ll->first->version)
+	{
+		n->version = version;
+	}
+	else
+	{
+		n->version = ll->first->version;
+		ll->first->version = version;
+	}
+
 	n->next = ll->first;
 	ll->first = n;
 	ll->size++;
@@ -343,10 +356,10 @@ int zend_eapi_add_version(char *ext_name, uint version_int)
 	 * Find API's in a range of versions
 	 */
 
-	if(zend_hash_exists(&eapi_reg_ver, ext_name, strlen(ext_name) + 1))
+	if(zend_hash_exists(&_REG_VER, ext_name, strlen(ext_name) + 1))
 	{
 		/* Multiple versions */
-		if(zend_hash_find(&eapi_reg_ver, ext_name, strlen(ext_name) + 1, (void **)(&ll)) == FAILURE)
+		if(zend_hash_find(&_REG_VER, ext_name, strlen(ext_name) + 1, (void **)(&ll)) == FAILURE)
 		{	
 			return FAILURE;
 		}
@@ -371,13 +384,42 @@ int zend_eapi_add_version(char *ext_name, uint version_int)
 			return FAILURE;
 		}
 
-		if(zend_hash_add(&eapi_reg_ver, ext_name, strlen(ext_name) + 1, ll, sizeof(zend_eapi_ver_llist), NULL) == FAILURE)
+		if(zend_hash_add(&_REG_VER, ext_name, strlen(ext_name) + 1, ll, sizeof(zend_eapi_ver_llist), NULL) == FAILURE)
 		{
 			zend_eapi_ver_llist_destroy(ll);
 			pefree(ll, _REG_VER_PRST);
 
 			return FAILURE;
 		}
+	}
+
+	return SUCCESS;
+}
+
+/* TODO: Need to test this and write some macros to iterate */
+int zend_eapi_ver_llist_find(zend_eapi_ver_llist *ll, uint version, uint mask, zend_eapi_ver_llist **results)
+{
+	zend_eapi_ver_llist_node *n = ll->first;
+
+	if(zend_eapi_ver_llist_create(results) == FAILURE)
+	{
+		return FAILURE;
+	}
+
+	while(n)
+	{
+		if((n->version & mask) == (version & mask))
+		{
+			if(zend_eapi_ver_llist_add(*results, n->version) == FAILURE)
+			{
+				zend_eapi_ver_llist_destroy(*results);
+				pefree(*results, _REG_VER_PRST);
+
+				return FAILURE;
+			}
+		}
+
+		n = n->next;
 	}
 
 	return SUCCESS;
@@ -410,7 +452,7 @@ int zend_eapi_add(char *ext_name, char *version_text, uint version_int, void *ap
 	}
 
 	/* Add the API to the hash table */
-	r = zend_hash_add(&eapi_registry, hash_name, strlen(hash_name) + 1, ext_api, sizeof(zend_eapi_extension), NULL);
+	r = zend_hash_add(&_REG, hash_name, strlen(hash_name) + 1, ext_api, sizeof(zend_eapi_extension), NULL);
 
 	if(r == SUCCESS)
 	{
@@ -480,7 +522,7 @@ ZEND_API int zend_eapi_exists_int_ver(char *ext_name, uint version)
 		return 0; /* FAILURE */
 	}
 	
-	r = zend_hash_exists(&eapi_registry, hash_name, strlen(hash_name) + 1);
+	r = zend_hash_exists(&_REG, hash_name, strlen(hash_name) + 1);
 	
 	/* Clear hash_name memory */
 	pefree(hash_name, _REG_PRST);
@@ -488,11 +530,12 @@ ZEND_API int zend_eapi_exists_int_ver(char *ext_name, uint version)
 	return r;
 }
 
-/* Finds the highest version in a llist of versions
- * TODO: Keep the highest version at the top so that
- * the time complexity is O(1) */
+/* Finds the highest version in a llist of versions */
 uint zend_eapi_ver_llist_max(zend_eapi_ver_llist *ll)
 {
+	return ll->first->version;
+
+	/*
 	uint m = 0;
 	zend_eapi_ver_llist_node *n = ll->first;
 
@@ -504,6 +547,7 @@ uint zend_eapi_ver_llist_max(zend_eapi_ver_llist *ll)
 	}
 
 	return m;
+	*/
 }
 
 /* Gets the latest version of the extension API */
@@ -511,7 +555,7 @@ ZEND_API int zend_eapi_get_latest_version(char *ext_name, uint *version)
 {
 	zend_eapi_ver_llist *ll;
 
-	if(zend_hash_find(&eapi_reg_ver, ext_name, strlen(ext_name) + 1, (void **)&ll) == FAILURE)
+	if(zend_hash_find(&_REG_VER, ext_name, strlen(ext_name) + 1, (void **)&ll) == FAILURE)
 	{
 		return FAILURE;
 	}
@@ -553,7 +597,7 @@ int zend_eapi_set_callback_int_ver(int type, int module_number, char *ext_name, 
 	cb.callback_func = callback_func;
 	cb.callback_func_empty = NULL;
 
-	zend_llist_add_element(&eapi_callback_list, &cb);
+	zend_llist_add_element(&_CB_LIST, &cb);
 
 	return SUCCESS;
 }
@@ -570,7 +614,7 @@ ZEND_API int zend_eapi_set_empty_callback(int type, int module_number, void (*ca
 	cb.callback_func = NULL;
 	cb.callback_func_empty = callback;
 
-	zend_llist_add_element(&eapi_callback_list, &cb);
+	zend_llist_add_element(&_CB_LIST, &cb);
 
 	return SUCCESS;
 }
@@ -611,7 +655,7 @@ ZEND_API int zend_eapi_get_int_ver(char *ext_name, uint version, void **api)
 		return FAILURE;
 	}
 	
-	if(zend_hash_find(&eapi_registry, hash_name, strlen(hash_name) + 1, (void **)(&ext_api)) == FAILURE)
+	if(zend_hash_find(&_REG, hash_name, strlen(hash_name) + 1, (void **)(&ext_api)) == FAILURE)
 	{
 		return FAILURE;
 	}

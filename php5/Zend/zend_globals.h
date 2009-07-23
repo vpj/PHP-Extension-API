@@ -245,6 +245,11 @@ struct _zend_executor_globals {
 	void *saved_fpu_cw;
 
 	void *reserved[ZEND_MAX_RESERVED_RESOURCES];
+
+	/* Extension API */
+	HashTable eapi_registry;
+	HashTable eapi_reg_ver;
+	zend_llist eapi_callback_list;
 };
 
 struct _zend_ini_scanner_globals {
