@@ -397,7 +397,7 @@ int zend_eapi_add_version(char *ext_name, uint version_int)
 }
 
 /* TODO: Need to test this and write some macros to iterate */
-int zend_eapi_ver_llist_find(zend_eapi_ver_llist *ll, uint version, uint mask, zend_eapi_ver_llist **results)
+int zend_eapi_ver_llist_find_obsolete(zend_eapi_ver_llist *ll, uint version, uint mask, zend_eapi_ver_llist **results)
 {
 	zend_eapi_ver_llist_node *n = ll->first;
 
@@ -423,6 +423,42 @@ int zend_eapi_ver_llist_find(zend_eapi_ver_llist *ll, uint version, uint mask, z
 	}
 
 	return SUCCESS;
+}
+
+int zend_eapi_ver_llist_find(zend_eapi_ver_llist *ll, uint version, uint mask, uint *results, int *size, int buf_length)
+{
+	zend_eapi_ver_llist_node *n = ll->first;
+	*size = 0;
+
+	while(n)
+	{
+		if((n->version & mask) == (version & mask))
+		{
+			*results++ = n->version;
+			(*size)++;
+
+			if(*size > buf_length)
+			{
+				break;
+			}
+		}
+
+		n = n->next;
+	}
+
+	return SUCCESS;
+}
+
+ZEND_API int zend_eapi_find_versions(char *ext_name, uint version, uint mask, uint *result, int *size, int buf_length)
+{
+	zend_eapi_ver_llist *ll;
+
+	if(zend_hash_find(&_REG_VER, ext_name, strlen(ext_name) + 1, (void **)&ll) == FAILURE)
+	{
+		return FAILURE;
+	}
+
+	return zend_eapi_ver_llist_find(ll, version, mask, result, size, buf_length);
 }
 
 /* Add (register) an extension API */
