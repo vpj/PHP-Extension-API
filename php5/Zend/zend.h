@@ -862,6 +862,8 @@ static inline int ZEND_U_CASE_EQUAL(zend_uchar type, zstr ustr, int ulen, char *
 	return ret;
 }
 
+#include "zend_eapi.h"
+
 #endif /* ZEND_H */
 
 /*

@@ -1,5 +1,5 @@
-#ifndef ZEND_EXT_API_H
-#define ZEND_EXT_API_H
+#ifndef ZEND_EAPI_H
+#define ZEND_EAPI_H
 
 #include "zend.h"
 #include "zend_hash.h"
