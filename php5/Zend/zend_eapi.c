@@ -4,13 +4,16 @@
 #include "zend_globals_macros.h"
 #include <ctype.h>
 
-#define _REG_PRST 1
-#define _REG_VER_PRST 1
-#define _LIST_CB_PRST 1
+#define _REG_PRST TRUE
+#define _REG_VER_PRST TRUE
+#define _LIST_CB_PRST TRUE
 
 #define _REG EG(eapi_registry)
 #define _REG_VER EG(eapi_reg_ver)
 #define _CB_LIST EG(eapi_callback_list)
+#define _NEW_EXT_NAME EG(eapi_new_ext_name)
+#define _NEW_EXT_VER EG(eapi_new_ext_version)
+#define _NEW_MOD_NO EG(eapi_new_module_number)
 
 /* {{{ zend_eapi_cb
  * Structure for Callbacks */
@@ -20,8 +23,9 @@ struct _zend_eapi_cb {
 	int latest;
 	int module_number;
 	int type;
-	void (*callback_func)(CALLBACK_FUNC_ARGS);
-	void (*callback_func_empty)(EMPTY_CALLBACK_FUNC_ARGS);
+	int called;
+	void (*callback_func)(EAPI_CALLBACK_FUNC_ARGS);
+	void (*callback_func_empty)(EAPI_EMPTY_CALLBACK_FUNC_ARGS);
 };
 
 typedef struct _zend_eapi_cb zend_eapi_cb;
@@ -121,6 +125,9 @@ void zend_eapi_init()
 	}
 	
 	zend_llist_init(&_CB_LIST, sizeof(zend_eapi_cb), zend_eapi_free_callback, _LIST_CB_PRST);
+
+	_NEW_EXT_NAME = NULL;
+	_NEW_MOD_NO = FALSE;
 }
 /* }}} */
 
@@ -161,7 +168,7 @@ ZEND_API int zend_eapi_version_toi(char *version_text, uint *version_int)
 	*version_int = 0;
 
 	t = 0;
-	for(i = 0; 1; i++) {
+	for(i = 0; TRUE; i++) {
 		if(isdigit(version_text[i])) {
 			t *= 10;
 			t += version_text[i] - '0';
@@ -249,8 +256,9 @@ int zend_eapi_callback(TSRMLS_D)
 			if(!cb->latest) {
 				if(zend_eapi_get_int_ver(cb->ext_name, cb->version, &api) == SUCCESS) {	
 					ext_name = strdup(cb->ext_name);
-
-					cb->callback_func(cb->type, cb->module_number, api, ext_name, cb->version TSRMLS_CC);
+					
+					cb->called = TRUE;
+					cb->callback_func(cb->type, cb->module_number, api, ext_name, cb->version, FALSE TSRMLS_CC);
 				}
 			}
 			/* If the callback has to be called with the latest API */
@@ -260,18 +268,104 @@ int zend_eapi_callback(TSRMLS_D)
 					if(zend_eapi_get_int_ver(cb->ext_name, version, &api) == SUCCESS) {	
 						ext_name = strdup(cb->ext_name);
 
-						cb->callback_func(cb->type, cb->module_number, api, ext_name, version TSRMLS_CC);
+						cb->called = TRUE;
+						cb->callback_func(cb->type, cb->module_number, api, ext_name, version, FALSE TSRMLS_CC);
 					}
 				}
 			}
 		}
 		/* If the empty callback has to be called */
 		else {
-			cb->callback_func_empty(cb->type, cb->module_number TSRMLS_CC);
+			cb->called = TRUE;
+			cb->callback_func_empty(cb->type, cb->module_number, NULL, 0, FALSE TSRMLS_CC);
 		}
 	}
-	
+
+	if(_NEW_EXT_NAME) {
+		pefree(_NEW_EXT_NAME, TRUE);
+	}
+
+	_NEW_MOD_NO = FALSE;
+
 	return SUCCESS;
+}
+/* }}} */
+
+/* {{{ int zend_eapi_new_extension_callback()
+ * This funciton is called when a extension is loaded through dl() and initialized
+ * */
+int zend_eapi_new_extension_callback(TSRMLS_D)
+{
+	zend_llist_element *element;
+	void *api;
+	zend_eapi_cb *cb;
+	char *ext_name;
+	uint version;
+	
+	/* New extension not registered */
+	if(!_NEW_EXT_NAME && !_NEW_MOD_NO) {
+		return FAILURE;
+	}
+
+	/* Calling call backs of other extensions */
+
+	for(element = _CB_LIST.head; element; element = element->next) {
+		cb = (zend_eapi_cb *) element->data;
+
+		if(cb->ext_name) {
+			if(_NEW_EXT_NAME && strcmp(cb->ext_name, _NEW_EXT_NAME) == 0) {
+				if(!cb->latest && _NEW_EXT_VER != cb->version) {
+					continue;
+				} else if(cb->latest) {
+					if(zend_eapi_get_latest_version(cb->ext_name, &version) == SUCCESS) {
+						if(version != _NEW_EXT_VER) {
+							continue;
+						}
+					} else {
+						continue;
+					}
+				}
+
+				version = _NEW_EXT_VER;
+			} else if(cb->module_number == _NEW_MOD_NO) {
+				if(cb->latest) {
+					if(zend_eapi_get_latest_version(cb->ext_name, &version) != SUCCESS)	{
+						continue;
+					}
+				} else {
+					version = cb->version;
+				}
+			} else {
+				continue;
+			}
+
+			if(zend_eapi_get_int_ver(cb->ext_name, version, &api) == SUCCESS) {	
+				ext_name = strdup(cb->ext_name);
+
+				cb->callback_func(cb->type, cb->module_number, api, ext_name, version, cb->called TSRMLS_CC);
+				cb->called = TRUE;
+			}
+		}
+		/* If the empty callback has to be called */
+		else {
+			if(cb->module_number == _NEW_MOD_NO) {
+				cb->callback_func_empty(cb->type, cb->module_number, NULL, 0, cb->called TSRMLS_CC);
+				cb->called = TRUE;
+			} else if(_NEW_EXT_NAME) {
+				cb->callback_func_empty(cb->type, cb->module_number, _NEW_EXT_NAME, _NEW_EXT_VER, cb->called TSRMLS_CC);
+				cb->called = TRUE;
+			}
+		}
+	}
+
+	if(_NEW_EXT_NAME) {
+		pefree(_NEW_EXT_NAME, TRUE);
+	}
+
+	_NEW_MOD_NO = FALSE;
+
+	return SUCCESS;
+
 }
 /* }}} */
 
@@ -454,6 +548,13 @@ static int zend_eapi_add(char *ext_name, char *version_text, uint version_int, v
 		r = zend_eapi_add_version(ext_name, version_int);
 	}
 
+	if(_NEW_EXT_NAME) {
+		pefree(_NEW_EXT_NAME, TRUE);
+	}
+
+	_NEW_EXT_NAME = pestrdup(ext_name, TRUE);
+	_NEW_EXT_VER = version_int;
+
 	pefree(ext_api, _REG_PRST);
 	pefree(hash_name, _REG_PRST);
 
@@ -501,7 +602,7 @@ ZEND_API int zend_eapi_register_int_ver(char *ext_name, uint version_int, void *
 
 /* {{{ ZEND_API int zend_eapi_exists_int_ver(char *ext_name, uint version)
  * Check if the extension API is available (version as a uint)
- * Returns 1 if exists 0 otherwise */
+ * Returns TRUE if exists FALSE otherwise */
 ZEND_API int zend_eapi_exists_int_ver(char *ext_name, uint version)
 {
 	char *hash_name;
@@ -510,7 +611,7 @@ ZEND_API int zend_eapi_exists_int_ver(char *ext_name, uint version)
 	if(zend_eapi_get_hashname(ext_name, version, &hash_name) == FAILURE) {
 		ZEND_PUTS("Error creating the hash name\n");
 		
-		return 0; /* FAILURE */
+		return FALSE;
 	}
 	
 	r = zend_hash_exists(&_REG, hash_name, strlen(hash_name) + 1);
@@ -559,7 +660,7 @@ ZEND_API int zend_eapi_get_latest_version(char *ext_name, uint *version)
 
 /* {{{ ZEND_API int zend_eapi_exists(char *ext_name, char *version)
  * Check if the extension API is available.
- * Returns 1 if exists 0 otherwise */
+ * Returns TRUE if exists FALSE otherwise */
 ZEND_API int zend_eapi_exists(char *ext_name, char *version)
 {
 	uint vi;
@@ -567,19 +668,19 @@ ZEND_API int zend_eapi_exists(char *ext_name, char *version)
 	if(zend_eapi_version_toi(version, &vi) == FAILURE) {
 		ZEND_PUTS("Invalid version format\n");
 		
-		return 0; /*FAILURE*/
+		return FALSE;
 	}
 							
 	return zend_eapi_exists_int_ver(ext_name, vi);
 }
 /* }}} */
 
-/* {{{ static int zend_eapi_set_callback_int_ver(int type, int module_number, char *ext_name, uint version, int latest, void (*callback_func)(CALLBACK_FUNC_ARGS))
+/* {{{ static int zend_eapi_set_callback_int_ver(int type, int module_number, char *ext_name, uint version, int latest, void (*callback_func)(EAPI_CALLBACK_FUNC_ARGS))
  * Registers an callback function.
  * The callback function would be called if the required extension API is available,
  * after all the extensions have been initialized (MINIT).
  * If latest is not 0, then the version is ignored and the API of the latest version is passed to the callback */
-static int zend_eapi_set_callback_int_ver(int type, int module_number, char *ext_name, uint version, int latest, void (*callback_func)(CALLBACK_FUNC_ARGS))
+static int zend_eapi_set_callback_int_ver(int type, int module_number, char *ext_name, uint version, int latest, void (*callback_func)(EAPI_CALLBACK_FUNC_ARGS))
 {
 	zend_eapi_cb cb;
 	cb.type = type;
@@ -587,18 +688,21 @@ static int zend_eapi_set_callback_int_ver(int type, int module_number, char *ext
 	cb.ext_name = strdup(ext_name);
 	cb.version = version;
 	cb.latest = latest;
+	cb.called = FALSE;
 	cb.callback_func = callback_func;
 	cb.callback_func_empty = NULL;
 
 	zend_llist_add_element(&_CB_LIST, &cb);
 
+	_NEW_MOD_NO = module_number;
+
 	return SUCCESS;
 }
 /* }}} */
 
-/* {{{ ZEND_API int zend_eapi_set_empty_callback(int type, int module_number, void (*callback)(EMPTY_CALLBACK_FUNC_ARGS))
+/* {{{ ZEND_API int zend_eapi_set_empty_callback(int type, int module_number, void (*callback)(EAPI_EMPTY_CALLBACK_FUNC_ARGS))
  * Sets an empty callback which accepts 0 parameters */
-ZEND_API int zend_eapi_set_empty_callback(int type, int module_number, void (*callback)(EMPTY_CALLBACK_FUNC_ARGS))
+ZEND_API int zend_eapi_set_empty_callback(int type, int module_number, void (*callback)(EAPI_EMPTY_CALLBACK_FUNC_ARGS))
 {
 	zend_eapi_cb cb;
 	cb.type = type;
@@ -606,34 +710,37 @@ ZEND_API int zend_eapi_set_empty_callback(int type, int module_number, void (*ca
 	cb.ext_name = NULL;
 	cb.version = 0;
 	cb.latest = 0;
+	cb.called = FALSE;
 	cb.callback_func = NULL;
 	cb.callback_func_empty = callback;
 
 	zend_llist_add_element(&_CB_LIST, &cb);
 
+	_NEW_MOD_NO = module_number;
+
 	return SUCCESS;
 }
 /* }}} */
 
-/* {{{ ZEND_API int zend_eapi_set_callback(int type, int module_number, char *ext_name, char *version, void (*callback_func)(CALLBACK_FUNC_ARGS))
+/* {{{ ZEND_API int zend_eapi_set_callback(int type, int module_number, char *ext_name, char *version, void (*callback_func)(EAPI_CALLBACK_FUNC_ARGS))
  * Registers an callback function.
  * The callback function would be called if the required extension API is available,
  * after all the extensions have been initialized (MINIT) 
  *
  * If version is NULL the latest API is used */
-ZEND_API int zend_eapi_set_callback(int type, int module_number, char *ext_name, char *version, void (*callback_func)(CALLBACK_FUNC_ARGS))
+ZEND_API int zend_eapi_set_callback(int type, int module_number, char *ext_name, char *version, void (*callback_func)(EAPI_CALLBACK_FUNC_ARGS))
 {
 	uint vi;
 
 	if(!version) {
-		return zend_eapi_set_callback_int_ver(type, module_number, ext_name, 0, 1, callback_func);
+		return zend_eapi_set_callback_int_ver(type, module_number, ext_name, 0, TRUE, callback_func);
 	}
 
 	if(zend_eapi_version_toi(version, &vi) == FAILURE) {
 		return FAILURE;
 	}
 
-	return zend_eapi_set_callback_int_ver(type, module_number, ext_name, vi, 0, callback_func);
+	return zend_eapi_set_callback_int_ver(type, module_number, ext_name, vi, FALSE, callback_func);
 }
 /* }}} */
 

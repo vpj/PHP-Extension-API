@@ -250,6 +250,9 @@ struct _zend_executor_globals {
 	HashTable eapi_registry;
 	HashTable eapi_reg_ver;
 	zend_llist eapi_callback_list;
+	char *eapi_new_ext_name;
+	uint eapi_new_ext_version;
+	int eapi_new_module_number;
 };
 
 struct _zend_ini_scanner_globals {

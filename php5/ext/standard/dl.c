@@ -237,6 +237,7 @@ PHPAPI int php_load_extension(char *filename, int type, int start_now TSRMLS_DC)
 			return FAILURE;
 		}
 	}
+
 	return SUCCESS;
 }
 /* }}} */
@@ -249,6 +250,9 @@ PHPAPI void php_dl(char *file, int type, zval *return_value, int start_now TSRML
 	if (php_load_extension(file, type, start_now TSRMLS_CC) == FAILURE) {
 		RETVAL_FALSE;
 	} else {
+		/* EAPI callback */
+		zend_eapi_new_extension_callback(TSRMLS_C);
+
 		RETVAL_TRUE;
 	}
 }
