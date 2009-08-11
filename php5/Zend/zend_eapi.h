@@ -7,8 +7,8 @@
 #define EAPI_SET_CALLBACK(ext_name, version, callback) zend_eapi_set_callback(type, module_number, ext_name, version, callback)
 #define EAPI_SET_EMPTY_CALLBACK(callback) zend_eapi_set_empty_callback(type, module_number, callback)
 
-#define CALLBACK_FUNC_ARGS int type, int module_number, void *api, char *ext_name, uint version
-#define EMPTY_CALLBACK_FUNC_ARGS int type, int module_number
+#define CALLBACK_FUNC_ARGS int type, int module_number, void *api, char *ext_name, uint version TSRMLS_DC
+#define EMPTY_CALLBACK_FUNC_ARGS int type, int module_number TSRMLS_DC
 
 #define EAPI_CALLBACK_FUNCTION_N(callback) callback
 

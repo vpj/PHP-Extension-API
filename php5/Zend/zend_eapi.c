@@ -20,8 +20,8 @@ struct _zend_eapi_cb {
 	int latest;
 	int module_number;
 	int type;
-	void (*callback_func)(int type, int module_number, void *api, char *ext_name, uint version);
-	void (*callback_func_empty)(int type, int module_number);
+	void (*callback_func)(CALLBACK_FUNC_ARGS);
+	void (*callback_func_empty)(EMPTY_CALLBACK_FUNC_ARGS);
 };
 
 typedef struct _zend_eapi_cb zend_eapi_cb;
@@ -233,7 +233,7 @@ static int zend_eapi_get_hashname(char *ext_name, uint version, char ** hash_nam
 /* {{{ int zend_eapi_callback()
  * This function is called from zend_startup_extensions function after all
  * extensions have gone through MINIT. This will call all the callbacks */
-int zend_eapi_callback()
+int zend_eapi_callback(TSRMLS_D)
 {
 	zend_llist_element *element;
 	void *api;
@@ -250,7 +250,7 @@ int zend_eapi_callback()
 				if(zend_eapi_get_int_ver(cb->ext_name, cb->version, &api) == SUCCESS) {	
 					ext_name = strdup(cb->ext_name);
 
-					cb->callback_func(cb->type, cb->module_number, api, ext_name, cb->version);
+					cb->callback_func(cb->type, cb->module_number, api, ext_name, cb->version TSRMLS_CC);
 				}
 			}
 			/* If the callback has to be called with the latest API */
@@ -260,14 +260,14 @@ int zend_eapi_callback()
 					if(zend_eapi_get_int_ver(cb->ext_name, version, &api) == SUCCESS) {	
 						ext_name = strdup(cb->ext_name);
 
-						cb->callback_func(cb->type, cb->module_number, api, ext_name, version);
+						cb->callback_func(cb->type, cb->module_number, api, ext_name, version TSRMLS_CC);
 					}
 				}
 			}
 		}
 		/* If the empty callback has to be called */
 		else {
-			cb->callback_func_empty(cb->type, cb->module_number);
+			cb->callback_func_empty(cb->type, cb->module_number TSRMLS_CC);
 		}
 	}
 	
