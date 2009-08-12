@@ -283,6 +283,7 @@ int zend_eapi_callback(TSRMLS_D)
 
 	if(_NEW_EXT_NAME) {
 		pefree(_NEW_EXT_NAME, TRUE);
+		_NEW_EXT_NAME = NULL;
 	}
 
 	_NEW_MOD_NO = FALSE;
@@ -360,10 +361,11 @@ int zend_eapi_new_extension_callback(TSRMLS_D)
 
 	if(_NEW_EXT_NAME) {
 		pefree(_NEW_EXT_NAME, TRUE);
+		_NEW_EXT_NAME = NULL;
 	}
 
 	_NEW_MOD_NO = FALSE;
-
+	
 	return SUCCESS;
 
 }

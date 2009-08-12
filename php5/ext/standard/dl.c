@@ -251,7 +251,7 @@ PHPAPI void php_dl(char *file, int type, zval *return_value, int start_now TSRML
 		RETVAL_FALSE;
 	} else {
 		/* EAPI callback */
-		zend_eapi_new_extension_callback(TSRMLS_C);
+		zend_eapi_new_extension_callback(TSRMLS_C); 
 
 		RETVAL_TRUE;
 	}
